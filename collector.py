@@ -203,38 +203,36 @@ def examiner_node(state):
     return {"quiz": quiz}
 
 def reviewer_node(state):
-    print(f"   🔍 [QA總編輯潤飾中] 正在優化 '{state['current_word']}' 的教材語句與邏輯...")
+    print(f"   🔍 [QA總編輯潤飾中] 正在優化 '{state['current_word']}'...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是專業的教材總編輯 (QA Editor)，只能輸出 JSON。你的任務是確保翻譯通順、符合台灣繁體中文慣用語，且測驗邏輯無誤。"),
-        ("user", """
-        請審查以下教材並進行直接潤飾修改。
-        【⚠️ 核心規則】：
-        1. 請嚴格保留原本的 Markdown 標籤與排版結構 (例如 📌 **焦點詞彙**： 等)，絕對不能刪除或修改這些格式標記。
-        2. 檢查中文翻譯是否生硬，請直接修改為通順流暢的台灣繁體中文。
-        3. 檢查測驗題的解答與解析邏輯是否正確，若有瑕疵請直接修正。
+        ("system", "你是專業教材總編輯。請優化內容，並嚴格輸出 JSON 格式。"),
+        ("user", f"""
+        請優化以下內容：
+        記憶卡：{state.get('teacher_card', '')}
+        測驗題：{state.get('quiz', '')}
         
-        【記憶卡草稿】：
-        {teacher_card}
-        
-        【測驗題草稿】：
-        {quiz}
-        
-        請輸出 JSON，必須包含兩個 key：
-        'polished_teacher_card' (潤飾後的記憶卡文字),
-        'polished_quiz' (潤飾後的測驗題文字)
+        請務必輸出 JSON 格式，包含兩個 Key: 'polished_teacher_card' 和 'polished_quiz'。
+        注意：Value 必須是純字串，不要再包一層 JSON 物件。
         """)
     ])
     
-    # 將前面兩個節點產生的資料餵給總編輯
-    data = (prompt | llm_reviewer | parser).invoke({
-        "teacher_card": state.get('teacher_card', ''),
-        "quiz": state.get('quiz', '')
-    })
+    # 執行 LLM
+    raw_res = (prompt | llm_reviewer | parser).invoke({})
     
-    # 直接覆寫原本的 state，把草稿替換成潤飾後的完稿
+    # 確保拿出來的是字串
+    def clean_content(content):
+        if isinstance(content, dict):
+            # 如果 LLM 不小心又包了一層，我們取第一個 value
+            return list(content.values())[0] if content else ""
+        return str(content)
+
+    polished_card = clean_content(raw_res.get('polished_teacher_card', ''))
+    polished_quiz = clean_content(raw_res.get('polished_quiz', ''))
+    
+    # 如果 polished 失敗 (空的)，則回退到原始草稿
     return {
-        "teacher_card": data.get('polished_teacher_card', state.get('teacher_card')),
-        "quiz": data.get('polished_quiz', state.get('quiz'))
+        "teacher_card": polished_card if polished_card.strip() else state.get('teacher_card'),
+        "quiz": polished_quiz if polished_quiz.strip() else state.get('quiz')
     }
 
 # 建立 State 與 Graph
