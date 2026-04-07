@@ -67,7 +67,7 @@ NOVA-Agentic-Vocabulary-Builder/
 
 ### 1. 取得專案 (Clone Repository)
 ```bash
-git clone [https://github.com/YuJunWang/NOVA-Agentic-Vocabulary-Builder.git](https://github.com/YuJunWang/NOVA-Agentic-Vocabulary-Builder.git)
+git clone https://github.com/YuJunWang/NOVA-Agentic-Vocabulary-Builder.git
 cd NOVA-Agentic-Vocabulary-Builder
 ```
 
@@ -82,19 +82,21 @@ pip install -r requirements.txt
 ```
 
 ### 3. 配置金鑰防護罩 (Secret Management)
-本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。請在本地專案根目錄建立以下兩個檔案：
+本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。
+請先到 [supabase](https://supabase.com/) 申請一個project，取得ID及Key
+接著在本地專案根目錄建立以下兩個檔案：
 
 **`.env` (供後端 `collector.py` 讀取)**
 ```text
 GROQ_API_KEY=gsk_your_api_key_here
-SUPABASE_URL=[https://your-project-id.supabase.co](https://your-project-id.supabase.co)
+SUPABASE_URL=https://your-project-id.supabase.co
 SUPABASE_KEY=your_anon_public_key
 TARGET_DAILY_COUNT=3
 ```
 
 **`.streamlit/secrets.toml` (供前端 `app.py` 讀取)**
 ```toml
-SUPABASE_URL = "[https://your-project-id.supabase.co](https://your-project-id.supabase.co)"
+SUPABASE_URL = "https://your-project-id.supabase.co"
 SUPABASE_KEY = "your_anon_public_key"
 ```
 *(⚠️ 註：請確保這兩個檔案已被加入 `.gitignore`)*
