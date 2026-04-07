@@ -84,6 +84,7 @@ pip install -r requirements.txt
 ### 3. 配置金鑰防護罩 (Secret Management)
 本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。
 請先到 [supabase](https://supabase.com/) 申請一個project，取得ID及Key
+
 接著在本地專案根目錄建立以下兩個檔案：
 
 **`.env` (供後端 `collector.py` 讀取)**
