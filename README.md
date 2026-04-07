@@ -100,7 +100,7 @@ TARGET_DAILY_COUNT=3
 SUPABASE_URL = "https://your-project-id.supabase.co"
 SUPABASE_KEY = "your_anon_public_key"
 ```
-*(⚠️ 註：請確保這兩個檔案已被加入 `.gitignore`)*
+
 
 ### 4. 啟動系統 (Run the System)
 
