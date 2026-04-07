@@ -1,0 +1,35 @@
+name: NOVA Daily Data Collection
+
+on:
+  schedule:
+    # 每天台灣時間早上 8:00 執行 (UTC 0:00)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # 允許我們在 GitHub 網頁上手動點擊執行
+
+jobs:
+  collect-vocab:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip' # 加入快取機制，讓未來的安裝速度更快
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 🚀 Run NOVA Collector Engine
+        env:
+          # 從 GitHub Secrets 讀取機密並變成環境變數
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          TARGET_DAILY_COUNT: ${{ secrets.TARGET_DAILY_COUNT }}
+        run: |
+          python collector.py
