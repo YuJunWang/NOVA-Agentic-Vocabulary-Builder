@@ -205,27 +205,49 @@ def examiner_node(state):
 def reviewer_node(state):
     print(f"   🔍 [QA總編輯潤飾中] 正在優化 '{state['current_word']}'...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是專業教材總編輯。請優化內容，並嚴格輸出 JSON 格式。"),
-        ("user", f"""
-        請潤飾以下內容的「中文翻譯流暢度」與「測驗題邏輯」。
-        
-        【⚠️ 絕對嚴格排版規則】(若違反將導致前端系統崩潰)：
-        1. 絕對不可修改、刪除或新增最前方的結構標記！必須完美保留 `[📖 時事單字記憶卡]` 與 `[💡 情境測驗題]`，連中括號 `[]` 都不准動！
-        2. 絕對不可擅自加上「記憶卡：」、「測驗題：」、「以下是...」等前綴贅字。
-        3. 只能針對「內文」的字詞與語法進行通順化，Markdown 符號 (如 ** 等) 必須保留。
-        4. 必須輸出 JSON 格式，包含 'polished_teacher_card' 與 'polished_quiz' 兩個 Key。Value 必須是純字串，不要嵌套額外的 JSON 物件。
-        
+        ("system", "你是專業的教材總編輯。你的任務是優化中文翻譯的流暢度與測驗邏輯，同時【嚴格複製】範例中的排版標籤與 JSON 格式。"),
+        ("user", """
+        請參考以下範例，潤飾實際任務的內容。
+        【⚠️ 絕對規則】：請精準對齊範例的格式，絕對不能省略 `[📖 時事單字記憶卡]` 或 `[💡 情境測驗題]` 等最前面的標記，也不要加上「以下是」之類的贅字。
+
+        === 範例開始 (One-Shot Example) ===
+        [範例輸入草稿]
         【待潤飾記憶卡】：
-        {state.get('teacher_card', '')}
+        [📖 時事單字記憶卡]
+        📰 **新聞原句**："The new policy had an immediate effect."
+        📰 **中文翻譯**：這個新政策有一個立刻的影響。
+        📌 **焦點詞彙**：**immediate** (adj.)
+        📖 **解釋**：立刻的
         
         【待潤飾測驗題】：
-        {state.get('quiz', '')}
+        [💡 情境測驗題]
+        The doctor asked for an _____ response.
+        (A) immediate (B) slow (C) delayed (D) late
+        [正確解答] (A)
+        [情境翻譯] 醫生要求一個立刻的回覆。
+
+        [範例預期輸出 (嚴格的 JSON)]
+        {{
+            "polished_teacher_card": "[📖 時事單字記憶卡]\n📰 **新聞原句**：\"The new policy had an immediate effect.\"\n📰 **中文翻譯**：這項新政策產生了立竿見影的效果。\n\n📌 **焦點詞彙**：**immediate** (adj.)\n📖 **解釋**：立即的、即刻的",
+            "polished_quiz": "[💡 情境測驗題]\nThe doctor asked for an _____ response.\n\n(A) immediate  (B) slow  (C) delayed  (D) late\n\n[正確解答] (A)\n[情境翻譯] 醫生要求立即回覆。"
+        }}
+        === 範例結束 ===
+
+        === 實際任務 ===
+        請優化以下內容，並嚴格以上述 JSON 格式輸出：
+
+        【待潤飾記憶卡】：
+        {teacher_card}
+
+        【待潤飾測驗題】：
+        {quiz}
         """)
     ])
     
     # 執行 LLM
     raw_res = (prompt | llm_reviewer | parser).invoke({})
     
+    # 防禦性萃取：確保拿出來的是字串
     def clean_content(content):
         if isinstance(content, dict):
             return list(content.values())[0] if content else ""
