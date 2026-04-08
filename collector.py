@@ -17,6 +17,10 @@ from langgraph.graph import StateGraph, START, END
 # Supabase 相關
 from supabase import create_client, Client
 
+print("=========================================")
+print("🚀 NOVA SYSTEM BOOTING: VERSION MVC-4.0")
+print("=========================================")
+
 # ==========================================
 # 1. 環境設定與初始化
 # ==========================================
@@ -173,10 +177,10 @@ def examiner_node(state):
         2. 選項 (A, B, C, D) 的長度與結構必須一致 (例如正確答案是片語，干擾選項也必須是語意不通的片語)。
         
         輸出 JSON 需包含：
-        question (帶有 _____ 的英文題目),
+        question (帶有 _____ 的全英文敘述題目),
         options (包含 A, B, C, D 四個 key 的物件),
         answer (正確選項字母),
-        translation (題目中文翻譯),
+        translation (題目的通順中文翻譯),
         explanation (解析，需說明為何選此答案以及其他選項為何錯誤)
         """)
     ])
