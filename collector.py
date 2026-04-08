@@ -203,16 +203,19 @@ def reviewer_node(state):
     ])
     
     # 總編輯拿到純資料，改完後吐出純資料
-    raw_res = (prompt | llm_reviewer | parser).invoke({
-        "teacher_data": state.get('raw_teacher_data', {}),
-        "quiz_data": state.get('raw_quiz_data', {})
-    })
+    try:
+        raw_res = (prompt | llm_reviewer | parser).invoke({
+            "teacher_data": state.get('raw_teacher_data', {}),
+            "quiz_data": state.get('raw_quiz_data', {})
+        })
+        final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
+        final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
+    except Exception as e:
+        print(f"   ⚠️ [警告] 總編輯罷工或 JSON 壞掉，啟用備用原始資料！錯誤: {e}")
+        final_teacher = state.get('raw_teacher_data', {})
+        final_quiz = state.get('raw_quiz_data', {})
     
-    # 拿出優化後的資料 (如果總編輯壞掉，就用老師和考官原本的資料墊底)
-    final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
-    final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
-    
-    
+
     card = f"""[📖 時事單字記憶卡]
 📰 **新聞原句**："{state['news_context']}"
 📰 **中文翻譯**：{final_teacher.get('news_translation', '')}
