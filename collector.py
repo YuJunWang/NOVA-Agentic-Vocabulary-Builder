@@ -207,29 +207,33 @@ def reviewer_node(state):
     prompt = ChatPromptTemplate.from_messages([
         ("system", "你是專業教材總編輯。請優化內容，並嚴格輸出 JSON 格式。"),
         ("user", f"""
-        請優化以下內容：
-        記憶卡：{state.get('teacher_card', '')}
-        測驗題：{state.get('quiz', '')}
+        請潤飾以下內容的「中文翻譯流暢度」與「測驗題邏輯」。
         
-        請務必輸出 JSON 格式，包含兩個 Key: 'polished_teacher_card' 和 'polished_quiz'。
-        注意：Value 必須是純字串，不要再包一層 JSON 物件。
+        【⚠️ 絕對嚴格排版規則】(若違反將導致前端系統崩潰)：
+        1. 絕對不可修改、刪除或新增最前方的結構標記！必須完美保留 `[📖 時事單字記憶卡]` 與 `[💡 情境測驗題]`，連中括號 `[]` 都不准動！
+        2. 絕對不可擅自加上「記憶卡：」、「測驗題：」、「以下是...」等前綴贅字。
+        3. 只能針對「內文」的字詞與語法進行通順化，Markdown 符號 (如 ** 等) 必須保留。
+        4. 必須輸出 JSON 格式，包含 'polished_teacher_card' 與 'polished_quiz' 兩個 Key。Value 必須是純字串，不要嵌套額外的 JSON 物件。
+        
+        【待潤飾記憶卡】：
+        {state.get('teacher_card', '')}
+        
+        【待潤飾測驗題】：
+        {state.get('quiz', '')}
         """)
     ])
     
     # 執行 LLM
     raw_res = (prompt | llm_reviewer | parser).invoke({})
     
-    # 確保拿出來的是字串
     def clean_content(content):
         if isinstance(content, dict):
-            # 如果 LLM 不小心又包了一層，我們取第一個 value
             return list(content.values())[0] if content else ""
         return str(content)
 
     polished_card = clean_content(raw_res.get('polished_teacher_card', ''))
     polished_quiz = clean_content(raw_res.get('polished_quiz', ''))
     
-    # 如果 polished 失敗 (空的)，則回退到原始草稿
     return {
         "teacher_card": polished_card if polished_card.strip() else state.get('teacher_card'),
         "quiz": polished_quiz if polished_quiz.strip() else state.get('quiz')
