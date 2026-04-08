@@ -161,18 +161,7 @@ def teacher_node(state):
         "context": state['news_context']
     })
     
-    card = f"""[📖 時事單字記憶卡]
-📰 **新聞原句**："{state['news_context']}"
-📰 **中文翻譯**：{data.get('news_translation', '')}
-
-📌 **單字**：{data.get('word', '')} ({data.get('part_of_speech', '')}) {data.get('kk_phonetics', '')}
-📖 **解釋**：{data.get('chinese_meaning', '')}
-
-💡 **生活例句**：
-**🇺🇸**：{data.get('example_sentence_en', '')}
-**🇹🇼**：{data.get('example_sentence_zh', '')}
-"""
-    return {"teacher_card": card}
+    return {"raw_teacher_data": data}
 
 def examiner_node(state):
     prompt = ChatPromptTemplate.from_messages([
@@ -192,70 +181,66 @@ def examiner_node(state):
         """)
     ])
     data = (prompt | llm_examiner | parser).invoke({"word": state['current_word']})
-    options = data.get('options', {})
-    quiz = f"""[💡 情境測驗題]
-{data.get('question', '')}
-(A) {options.get('A','')} (B) {options.get('B','')} (C) {options.get('C','')} (D) {options.get('D','')}
 
-[正確解答] {data.get('answer', '')}
-[情境翻譯] {data.get('translation', '')}
-[解析] {data.get('explanation', '')}
-"""
-    return {"quiz": quiz}
+    return {"raw_quiz_data": data}
 
 def reviewer_node(state):
     print(f"   🔍 [QA總編輯潤飾中] 正在優化 '{state['current_word']}'...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是專業的教材總編輯。你的任務是優化中文翻譯的流暢度與測驗邏輯。請輸出 JSON 格式。"),
+        ("system", "你是專業教材總編輯。你的任務是優化 JSON 資料裡的「中文翻譯」與「解釋流暢度」，確保符合台灣慣用語。"),
         ("user", """
-        請優化以下內容的「中文翻譯流暢度」：
-
-        【待潤飾記憶卡】：
-        {teacher_card}
-
-        【待潤飾測驗題】：
-        {quiz}
+        請檢視並優化以下兩組 JSON 資料的中文內容 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation)。
+        【⚠️ 核心規則】：請保留原本所有的 JSON Key 不變，只優化 Value 的中文內容。
         
-        請輸出 JSON，包含 'polished_teacher_card' 與 'polished_quiz' 兩個 Key。
+        【待潤飾老師資料】：
+        {teacher_data}
+        
+        【待潤飾考官資料】：
+        {quiz_data}
+        
+        請輸出 JSON，必須包含兩個 Key：'polished_teacher' 與 'polished_quiz'，裡面分別包裝優化後的完整字典。
         """)
     ])
     
-    # 執行 LLM
+    # 總編輯拿到純資料，改完後吐出純資料
     raw_res = (prompt | llm_reviewer | parser).invoke({
-        "teacher_card": state.get('teacher_card', ''),
-        "quiz": state.get('quiz', '')
+        "teacher_data": state.get('raw_teacher_data', {}),
+        "quiz_data": state.get('raw_quiz_data', {})
     })
     
-    def clean_content(content):
-        if isinstance(content, dict):
-            return list(content.values())[0] if content else ""
-        return str(content)
-
-    polished_card = clean_content(raw_res.get('polished_teacher_card', ''))
-    polished_quiz = clean_content(raw_res.get('polished_quiz', ''))
+    # 拿出優化後的資料 (如果總編輯壞掉，就用老師和考官原本的資料墊底)
+    final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
+    final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
     
-    # 退回草稿機制
-    current_card = polished_card if polished_card.strip() else state.get('teacher_card', '')
-    current_quiz = polished_quiz if polished_quiz.strip() else state.get('quiz', '')
-
-    # 1. 記憶卡：用正則找 "📰" 之後的所有內容，前面的廢話全部丟棄
-    card_match = re.search(r'(📰.*)', current_card, re.DOTALL)
-    if card_match:
-        final_card = f"[📖 時事單字記憶卡]\n{card_match.group(1).strip()}"
-    else:
-        final_card = current_card
-
-    # 2. 測驗題：把開頭所有的中文廢話 (測驗題、記憶卡)、括號標籤、冒號全部剃除
-    # r'^(.*?)(?=[a-zA-Z])' 的意思是：把第一個英文字母出現「之前」的所有亂七八糟的東西都刪掉
-    final_quiz = re.sub(r'^(記憶卡|測驗題|【.*?】|\[.*?\]|💡.*?題)[：:\s]*', '', current_quiz).strip()
-    final_quiz = final_quiz.replace("[💡 情境測驗題]", "").strip()
     
-    # 穿上完美的制服
-    final_quiz = f"[💡 情境測驗題]\n{final_quiz}"
+    card = f"""[📖 時事單字記憶卡]
+📰 **新聞原句**："{state['news_context']}"
+📰 **中文翻譯**：{final_teacher.get('news_translation', '')}
 
+📌 **焦點詞彙**：**{final_teacher.get('word', '')}** ({final_teacher.get('part_of_speech', '')}) {final_teacher.get('kk_phonetics', '')}
+📖 **解釋**：{final_teacher.get('chinese_meaning', '')}
+
+💡 **生活例句**：
+**🇺🇸**：{final_teacher.get('example_sentence_en', '')}
+**🇹🇼**：{final_teacher.get('example_sentence_zh', '')}
+"""
+
+    options = final_quiz.get('options', {})
+    quiz = f"""[💡 情境測驗題]
+{final_quiz.get('question', '')}
+
+(A) {options.get('A','')}  (B) {options.get('B','')}  
+(C) {options.get('C','')}  (D) {options.get('D','')}
+
+[正確解答] {final_quiz.get('answer', '')}
+[情境翻譯] {final_quiz.get('translation', '')}
+[解析] {final_quiz.get('explanation', '')}
+"""
+
+    # 最終輸出完美不跑版的字串給後續存檔
     return {
-        "teacher_card": final_card,
-        "quiz": final_quiz
+        "teacher_card": card,
+        "quiz": quiz
     }
 
 # 建立 State 與 Graph
@@ -263,6 +248,8 @@ class AgentState(TypedDict):
     current_word: str
     news_context: str
     is_suitable: Optional[bool]
+    raw_teacher_data: Optional[dict]
+    raw_quiz_data: Optional[dict]
     teacher_card: Optional[str]
     quiz: Optional[str]
 
