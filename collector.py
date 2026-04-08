@@ -234,30 +234,25 @@ def reviewer_node(state):
     polished_card = clean_content(raw_res.get('polished_teacher_card', ''))
     polished_quiz = clean_content(raw_res.get('polished_quiz', ''))
     
-    def force_card_format(text):
-        if not text: return text
-        if "📰" in text:
-            core_content = text[text.find("📰"):].strip()
-            return f"[📖 時事單字記憶卡]\n{core_content}"
-        return text
+    # 退回草稿機制
+    current_card = polished_card if polished_card.strip() else state.get('teacher_card', '')
+    current_quiz = polished_quiz if polished_quiz.strip() else state.get('quiz', '')
 
-    def force_quiz_format(text):
-        if not text: return text
-        # 條列出 LLM 最愛亂加的廢話清單
-        garbage_prefixes = [
-            "測驗題：", "測驗題:", "【測驗題】", "[💡 情境測驗題]", 
-            "💡 情境測驗題", "記憶卡：", "記憶卡:"
-        ]
-        for p in garbage_prefixes:
-            text = text.replace(p, "")
-        
-        text = text.lstrip(" :：\n")
-        return f"[💡 情境測驗題]\n{text}"
+    # 1. 記憶卡：用正則找 "📰" 之後的所有內容，前面的廢話全部丟棄
+    card_match = re.search(r'(📰.*)', current_card, re.DOTALL)
+    if card_match:
+        final_card = f"[📖 時事單字記憶卡]\n{card_match.group(1).strip()}"
+    else:
+        final_card = current_card
 
-    # 強制套用攔截網
-    final_card = force_card_format(polished_card if polished_card.strip() else state.get('teacher_card'))
-    final_quiz = force_quiz_format(polished_quiz if polished_quiz.strip() else state.get('quiz'))
+    # 2. 測驗題：把開頭所有的中文廢話 (測驗題、記憶卡)、括號標籤、冒號全部剃除
+    # r'^(.*?)(?=[a-zA-Z])' 的意思是：把第一個英文字母出現「之前」的所有亂七八糟的東西都刪掉
+    final_quiz = re.sub(r'^(記憶卡|測驗題|【.*?】|\[.*?\]|💡.*?題)[：:\s]*', '', current_quiz).strip()
+    final_quiz = final_quiz.replace("[💡 情境測驗題]", "").strip()
     
+    # 穿上完美的制服
+    final_quiz = f"[💡 情境測驗題]\n{final_quiz}"
+
     return {
         "teacher_card": final_card,
         "quiz": final_quiz
