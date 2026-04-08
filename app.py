@@ -83,6 +83,25 @@ def text_to_speech_player(text):
 st.title("🌍 NOVA 智能時事單字庫")
 st.markdown("*Agentic News-Driven Vocabulary Builder (ANDVB)*")
 
+with st.sidebar:
+    st.header("⚙️ 系統控制")
+    
+    # 顯示目前記憶體裡到底抓到了幾題，方便我們除錯
+    current_count = len(st.session_state.get('due_cards', []))
+    st.caption(f"📌 目前載入任務數：{current_count} 題")
+    
+    if st.button("🔄 強制同步雲端單字", use_container_width=True):
+        # 1. 第一步：徹底炸毀 Streamlit 的快取記憶！
+        st.cache_data.clear()
+        
+        # 2. 第二步：重新去 Supabase 撈取最熱騰騰的資料
+        st.session_state.due_cards = fetch_due_cards()
+        st.session_state.current_index = 0
+        st.session_state.card_flipped = False
+        
+        # 3. 第三步：重新載入畫面
+        st.rerun()
+
 if 'due_cards' not in st.session_state:
     with st.spinner("☁️ 正在從雲端金庫讀取今日教材..."):
         st.session_state.due_cards = fetch_due_cards()
@@ -123,16 +142,62 @@ else:
             
     if st.session_state.card_flipped:
         st.divider()
-        st.markdown(current_card['teacher_card_content'])
+        content = current_card['teacher_card_content']
         
-        st.markdown("#### 🎧 聽聽看新聞原句怎麼唸：")
-        text_to_speech_player(current_card['news_context'])
+        # 1. 強化版解析函式 (增加容錯)
+        def get_part(text, start, end=None):
+            if start not in text: return ""
+            s = text.find(start) + len(start)
+            if end and end in text[s:]:
+                e = text.find(end, s)
+                return text[s:e].strip()
+            return text[s:].strip()
+
+        # --- 第一區塊：新聞原句 (只留原文、聲音、翻譯) ---
+        st.markdown("### 📖 時事單字記憶卡")
         
-        with st.expander("  🕵️‍♂️ [選作] 點我挑戰魔王考官測驗題"):
-            st.markdown(current_card['examiner_quiz_content'])
-            
+        # 抓取原文：從「新聞原句」到「中文翻譯」
+        news_en = get_part(content, "📰 **新聞原句**：", "📰 **中文翻譯**：").strip().strip('"')
+        # 抓取翻譯：從「中文翻譯」到「單字與詞性」 (確保對齊你的截圖標籤)
+        news_zh = get_part(content, "📰 **中文翻譯**：", "📌")
+        
+        st.markdown("##### 📰 新聞原句 News Context")
+        st.write(news_en)
+        text_to_speech_player(news_en)
+        if news_zh:
+            st.write(news_zh)
+        
         st.divider()
-        st.markdown("### 🤔 你覺得這個單字難嗎？")
+
+        # --- 第二區塊：焦點詞彙 (只留詞彙資訊) ---
+        st.markdown("### 📌 焦點詞彙與解釋")
+        # 抓取詞彙：從「單字與詞性」到「生活例句」
+        vocab_info = get_part(content, "📌", "💡")
+        if vocab_info:
+            st.info(f"**{target_word}**\n\n{vocab_info}")
+        
+        st.divider()
+
+        # --- 第三區塊：生活例句 (左右切分，包含聲音) ---
+        st.markdown("### 💡 生活情境造句 Daily Life Example")
+        
+        example_en = get_part(content, "**🇺🇸**：", "**🇹🇼**：")
+        example_zh = get_part(content, "**🇹🇼**：")
+        
+        col_en, col_zh = st.columns(2)
+        with col_en:
+            st.markdown("##### 🇺🇸 English")
+            st.info(example_en)
+            text_to_speech_player(example_en)
+            
+        with col_zh:
+            st.markdown("##### 🇹🇼 中文翻譯")
+            st.success(example_zh)
+
+        # --- 4. 測驗題區塊 ---
+        st.divider()
+        with st.expander("🕵️‍♂️ [選作] 點我挑戰魔王考官測驗題"):
+            st.markdown(current_card['examiner_quiz_content'])
         
         col1, col2, col3, col4 = st.columns(4)
         
