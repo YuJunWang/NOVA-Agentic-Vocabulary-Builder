@@ -172,15 +172,17 @@ def examiner_node(state):
         ("system", "你是嚴格的考官，只能輸出 JSON。"),
         ("user", """
         請針對焦點詞彙 '{word}' 設計一題四選一的英文填空題。
-        【⚠️ 核心規則】：
-        1. 如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
-        2. 選項 (A, B, C, D) 的長度與結構必須一致 (例如正確答案是片語，干擾選項也必須是語意不通的片語)。
+        
+        【⚠️ 核心規則 (必須遵守不得違反!)】：
+        1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% 全英文**，絕對不允許出現任何中文字！
+        2. 挖空規則：如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
+        3. 選項對稱：選項 (A, B, C, D) 的長度、時態與結構必須一致。
         
         輸出 JSON 需包含：
-        question (帶有 _____ 的全英文敘述題目),
-        options (包含 A, B, C, D 四個 key 的物件),
+        question (帶有 _____ 的純英文題目),
+        options (包含 A, B, C, D 四個 key 的純英文物件),
         answer (正確選項字母),
-        translation (題目的通順中文翻譯),
+        translation (題目中文翻譯),
         explanation (解析，需說明為何選此答案以及其他選項為何錯誤)
         """)
     ])
@@ -189,12 +191,16 @@ def examiner_node(state):
     return {"raw_quiz_data": data}
 
 def reviewer_node(state):
-    print(f"   🔍 [QA總編輯潤飾中] 正在優化 '{state['current_word']}'...")
+    print(f"   🔍 [QA總編輯品管中] 正在檢查與優化 '{state['current_word']}'...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是專業教材總編輯。你的任務是優化 JSON 資料裡的「中文翻譯」與「解釋流暢度」，確保符合台灣慣用語。"),
+        ("system", "你是嚴格的教材總編輯兼 QA 品管員。只能輸出 JSON。"),
         ("user", """
-        請檢視並優化以下兩組 JSON 資料的中文內容 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation)。
-        【⚠️ 核心規則】：請保留原本所有的 JSON Key 不變，只優化 Value 的中文內容。
+        請檢視並優化以下兩組 JSON 資料。
+        
+        【🛡️ QA 品管任務】：
+        1. 檢查考官資料的 'question' 與 'options'：如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」。
+        2. 檢查老師資料的 'example_sentence_en'：必須是全英文。
+        3. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語。
         
         【待潤飾老師資料】：
         {teacher_data}
@@ -202,11 +208,10 @@ def reviewer_node(state):
         【待潤飾考官資料】：
         {quiz_data}
         
-        請輸出 JSON，必須包含兩個 Key：'polished_teacher' 與 'polished_quiz'，裡面分別包裝優化後的完整字典。
+        請輸出 JSON，必須包含兩個 Key：'polished_teacher' 與 'polished_quiz'，裡面分別包裝優化後的完整字典 (保持原本的 key 不變)。
         """)
     ])
     
-    # 總編輯拿到純資料，改完後吐出純資料
     try:
         raw_res = (prompt | llm_reviewer | parser).invoke({
             "teacher_data": state.get('raw_teacher_data', {}),
@@ -215,11 +220,11 @@ def reviewer_node(state):
         final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
         final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
     except Exception as e:
-        print(f"   ⚠️ [警告] 總編輯罷工或 JSON 壞掉，啟用備用原始資料！錯誤: {e}")
+        print(f"   ⚠️ [警告] 總編輯罷工，啟用備用原始資料！錯誤: {e}")
         final_teacher = state.get('raw_teacher_data', {})
         final_quiz = state.get('raw_quiz_data', {})
     
-
+    # 組合卡片內容
     card = f"""[📖 時事單字記憶卡]
 📰 **新聞原句**："{state['news_context']}"
 📰 **中文翻譯**：{final_teacher.get('news_translation', '')}
@@ -244,7 +249,6 @@ def reviewer_node(state):
 [解析] {final_quiz.get('explanation', '')}
 """
 
-    # 最終輸出完美不跑版的字串給後續存檔
     return {
         "teacher_card": card,
         "quiz": quiz
