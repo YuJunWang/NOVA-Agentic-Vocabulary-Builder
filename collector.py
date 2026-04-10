@@ -174,7 +174,7 @@ def examiner_node(state):
         請針對焦點詞彙 '{word}' 設計一題四選一的英文填空題。
         
         【⚠️ 核心規則 (必須遵守不得違反!)】：
-        1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% 全英文**，絕對不允許出現任何中文字！
+        1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% totally in English**，絕對不允許出現任何中文字！
         2. 挖空規則：如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
         3. 選項對稱：選項 (A, B, C, D) 的長度、時態與結構必須一致。
         
@@ -182,8 +182,8 @@ def examiner_node(state):
         question (帶有 _____ 的純英文題目),
         options (包含 A, B, C, D 四個 key 的純英文物件),
         answer (正確選項字母),
-        translation (題目中文翻譯),
-        explanation (解析，需說明為何選此答案以及其他選項為何錯誤)
+        translation (題目繁體中文翻譯),
+        explanation (繁體中文解析，需說明為何選此答案以及其他選項為何錯誤)
         """)
     ])
     data = (prompt | llm_examiner | parser).invoke({"word": state['current_word']})
@@ -198,7 +198,7 @@ def reviewer_node(state):
         請檢視並優化以下兩組 JSON 資料。
         
         【🛡️ QA 品管任務】：
-        1. 檢查考官資料的 'question' 與 'options'：如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」。
+        1. 檢查考官資料的 'question' 與 'options'：如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」，ALL IN ENGLISH。
         2. 檢查老師資料的 'example_sentence_en'：必須是全英文。
         3. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語。
         
