@@ -4,6 +4,7 @@ from datetime import datetime, timezone, timedelta
 from gtts import gTTS
 import io
 import re
+import pytz
 
 # ==========================================
 # 1. 系統初始化與雲端連線
@@ -29,7 +30,10 @@ def fetch_due_cards():
     user_progress = {p['word']: p for p in progress_res.data}
     
     due_cards = []
-    today = datetime.now(timezone.utc).date()
+
+    # 使用台灣時區取得「今天」的日期
+    tw_tz = pytz.timezone('Asia/Taipei')
+    today = datetime.now(tw_tz).date()
     
     for word, card_data in all_cards.items():
         if word in user_progress:
@@ -83,28 +87,27 @@ def text_to_speech_player(text):
 st.title("🌍 NOVA 智能時事單字庫")
 st.markdown("*Agentic News-Driven Vocabulary Builder (ANDVB)*")
 
+tw_tz = pytz.timezone('Asia/Taipei')
+current_date_str = datetime.now(tw_tz).strftime("%Y-%m-%d")
+
 with st.sidebar:
     st.header("⚙️ 系統控制")
     
-    # 顯示目前記憶體裡到底抓到了幾題，方便我們除錯
     current_count = len(st.session_state.get('due_cards', []))
     st.caption(f"📌 目前載入任務數：{current_count} 題")
     
     if st.button("🔄 強制同步雲端單字", use_container_width=True):
-        # 1. 第一步：徹底炸毀 Streamlit 的快取記憶！
         st.cache_data.clear()
-        
-        # 2. 第二步：重新去 Supabase 撈取最熱騰騰的資料
         st.session_state.due_cards = fetch_due_cards()
+        st.session_state.last_run_date = current_date_str
         st.session_state.current_index = 0
         st.session_state.card_flipped = False
-        
-        # 3. 第三步：重新載入畫面
         st.rerun()
 
-if 'due_cards' not in st.session_state:
+if 'due_cards' not in st.session_state or st.session_state.get('last_run_date') != current_date_str:
     with st.spinner("☁️ 正在從雲端金庫讀取今日教材..."):
         st.session_state.due_cards = fetch_due_cards()
+        st.session_state.last_run_date = current_date_str
 if 'current_index' not in st.session_state:
     st.session_state.current_index = 0
 if 'card_flipped' not in st.session_state:
