@@ -173,7 +173,7 @@ def examiner_node(state):
         ("user", """
         請針對焦點詞彙 '{word}' 設計一題四選一的英文填空題。
         
-        【⚠️ 核心規則 (必須遵守不得違反!)】：
+        【⚠️ 核心規則 (必須遵守不得違反!題目及選項必須使用英文撰寫)】：
         1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% totally in English**，絕對不允許出現任何中文字！
         2. 挖空規則：如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
         3. 選項對稱：選項 (A, B, C, D) 的長度、時態與結構必須一致。
@@ -198,8 +198,8 @@ def reviewer_node(state):
         請檢視並優化以下兩組 JSON 資料。
         
         【🛡️ QA 品管任務】：
-        1. 檢查考官資料的 'question' 與 'options'：如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」，ALL IN ENGLISH。
-        2. 檢查老師資料的 'example_sentence_en'：必須是全英文。
+        1. 檢查老師資料的 'example_sentence_en'：**必須是全英文**。
+        2. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」，ALL IN ENGLISH。
         3. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語。
         
         【待潤飾老師資料】：
