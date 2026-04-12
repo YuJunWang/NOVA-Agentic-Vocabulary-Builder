@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+import random
 
 # LangChain & Groq 相關
 from langchain_groq import ChatGroq
@@ -86,35 +87,60 @@ class SupabaseManager:
 # ==========================================
 # 3. 爬蟲與字典交集 (ETL 引擎)
 # ==========================================
-def fetch_and_extract_daily_vocab():
-    print("🌍 啟動 BBC RSS 爬蟲與單字提煉引擎...")
+def fetch_diverse_learning_materials():
+    print("🌍 啟動 NOVA 終極爬蟲引擎（隨機 3 領域 x 15 筆 = 45 候選）...")
     
-    # 讀取本地字典檔
+    # 讀取本地字典
     df_vocab = pd.read_csv("data/vocab_advanced_clean.csv")
     advanced_words_set = set(df_vocab['word'].str.lower())
     
-    feed_url = "http://feeds.bbci.co.uk/news/world/rss.xml"
-    feed = feedparser.parse(feed_url)
+    # 總頻道池 (Master Pool)
+    MASTER_FEEDS = {
+        "World": "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "Business": "http://feeds.bbci.co.uk/news/business/rss.xml",
+        "Tech": "http://feeds.bbci.co.uk/news/technology/rss.xml",
+        "Science": "http://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "Health": "http://feeds.bbci.co.uk/news/health/rss.xml",
+        "Education": "http://feeds.bbci.co.uk/news/education/rss.xml"
+    }
     
-    learning_materials = []
+    # 🎲 第一層隨機：每天從總池子裡「隨機盲抽 3 個領域」
+    selected_categories = random.sample(list(MASTER_FEEDS.keys()), 3)
+    print(f"🎲 今日幸運領域：{', '.join(selected_categories)}\n")
     
-    for entry in feed.entries[:20]: # 取前 20 篇新聞測試
-        summary_text = BeautifulSoup(entry.summary, "html.parser").get_text()
-        words_in_news = set(summary_text.lower().replace('.', '').replace(',', '').split())
+    full_candidate_pool = []
+    
+    # 🎲 第二層分層：針對抽中的這 3 個領域，各抓 15 筆
+    for category in selected_categories:
+        url = MASTER_FEEDS[category]
+        print(f"📡 正在抓取 [{category}] 領域...")
+        feed = feedparser.parse(url)
         
-        # 找交集
-        matched_words = words_in_news.intersection(advanced_words_set)
-        
-        if matched_words:
-            target_word = max(matched_words, key=len)
-            learning_materials.append({
-                "Target_Word": target_word,
-                "News_Context": summary_text,
-                "Article_Title": entry.title
-            })
-            advanced_words_set.remove(target_word) # 防止重複挑字
+        count = 0
+        for entry in feed.entries:
+            if count >= 15: break # 每個頻道嚴格把關只拿 15 筆
             
-    return pd.DataFrame(learning_materials)
+            summary_text = BeautifulSoup(entry.summary, "html.parser").get_text()
+            words_in_news = set(summary_text.lower().replace('.', ' ').replace(',', ' ').split())
+            
+            # 尋找難字交集
+            matched_words = words_in_news.intersection(advanced_words_set)
+            
+            if matched_words:
+                target_word = max(matched_words, key=len)
+                full_candidate_pool.append({
+                    "Target_Word": target_word,
+                    "News_Context": summary_text,
+                    "Category": category # 標註領域，方便日誌觀察
+                })
+                advanced_words_set.discard(target_word) # 防止同一次執行中重複挑字
+                count += 1
+                
+    # 🎲 第三層隨機：全局大洗牌 (Global Shuffle)
+    random.shuffle(full_candidate_pool)
+    print(f"✅ 完成！共建立 {len(full_candidate_pool)} 筆跨領域候選池。")
+    
+    return full_candidate_pool
 
 # ==========================================
 # 4. 定義 AI 員工 (LangGraph LCEL 節點)
@@ -280,69 +306,72 @@ app = workflow.compile()
 # ==========================================
 # 5. 雲端量產工廠
 # ==========================================
-def mass_produce_flashcards_with_refresh(df_news_material, target_daily_count=3):
+def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
     """
-    負責接收提煉好的單字 DataFrame，直到「成功」產出指定數量後才停止。
+    負責接收提煉好的單字 List，直到「成功」產出指定數量後才停止。
     """
-    if df_news_material.empty:
-        print("今天沒有抓到合適的單字。")
+    if not candidates:
+        print("今天沒有抓到合適的單字候選名單。")
         return
 
-    print(f"🔄 啟動 [時效性感知] 雲端量產工廠 (目標：成功產出 {target_daily_count} 個新教材)...\n")
+    print(f"🔄 啟動 [時效性感知] 雲端量產工廠 (目標：成功補齊 {target_daily_count} 個新教材)...\n")
     
     success_count = 0 
     
-    for _, row in df_news_material.iterrows():
+    # 🌟 改用 enumerate 來同時取得進度與資料
+    for attempts, item in enumerate(candidates, 1):
         
         if success_count >= target_daily_count:
-            print(f"\n🎯 報告老闆！已成功為您備妥 {target_daily_count} 個單字，今日產線順利停機！")
+            print(f"\n🎯 報告老闆！今日產線任務達標，已成功備妥 {target_daily_count} 個單字，順利停機！")
             break
             
-        target_word = row['Target_Word'].lower()
-        context = row['News_Context']
+        target_word = item['Target_Word'].lower()
+        context = item['News_Context']
+        category = item.get('Category', 'Unknown') # 這個字來自哪個領域
+        
+        print("-" * 50)
+        print(f"⏳ [產能 {success_count}/{target_daily_count} | 消耗候選 {attempts}/{len(candidates)}]")
+        print(f"📡 領域: [{category}] | 🎯 測試單字: '{target_word}'")
         
         record = SupabaseManager.get_word_record(target_word)
         should_generate, is_update, current_count = False, False, 0
 
         if record:
-            # 處理已存在的單字，檢查是否需要更新
             last_updated = datetime.fromisoformat(record['updated_at'].replace('Z', '+00:00'))
             days_diff = (datetime.now(timezone.utc) - last_updated).days
             current_count = record.get('update_count', 0)
 
             if days_diff >= 15:
-                print(f"♻️ '{target_word}' 已過期，準備更新...")
+                print(f"   ♻️ '{target_word}' 已過期 ({days_diff} 天未見)，準備更新...")
                 should_generate = True
                 is_update = True
             else:
-                print(f"⏭️ '{target_word}' 剛更新過，跳過。")
-                continue # 這個字跳過，不列入 success_count 計算
+                print(f"   ⏭️ '{target_word}' 剛更新過，跳過。")
+                continue 
         else:
-            print(f"✨ 發現新單字 '{target_word}'，開始產製...")
+            print(f"   ✨ 發現全新單字，開始呼叫 AI 產製...")
             should_generate = True
 
         if should_generate:
             try:
-                # 啟動 LangGraph 多代理人工廠 (包含 Assessor -> Teacher -> Examiner -> Reviewer)
+                # 啟動 LangGraph 多代理人工廠
                 final_state = app.invoke({"current_word": target_word, "news_context": context})
                 
-                # 🌟 攔截機制：如果評估員判定太簡單，直接跳過不存檔
+                # 攔截機制：如果評估員判定太簡單，直接跳過不存檔
                 if not final_state.get("is_suitable", False):
-                    print(f"   🛑 淘汰 '{target_word}' (難度不符或太簡單)。")
+                    print(f"   🛑 淘汰 (難度不符或格式錯誤)，尋找下一個。")
                     continue 
                 
-                # 從 final_state 取出經過 QA 總編輯潤飾後的最終教材
                 teacher_card = final_state.get('teacher_card', '')
                 quiz = final_state.get('quiz', '')
                 
                 if is_update:
                     SupabaseManager.update_generation_result(target_word, context, teacher_card, quiz, current_count)
-                    print(f"   ✅ '{target_word}' 更新完成！")
+                    print(f"   ✅ '{target_word}' 雲端更新完成！")
                 else:
                     SupabaseManager.save_new_generation(target_word, context, teacher_card, quiz)
-                    print(f"   ✅ 新單字 '{target_word}' 已存入雲端。")
+                    print(f"   ✅ '{target_word}' 已成功存入雲端！")
                     
-                # 只有當教材被成功存進 Supabase，計數器才 +1
                 success_count += 1 
                 
             except Exception as e:
@@ -354,28 +383,35 @@ def mass_produce_flashcards_with_refresh(df_news_material, target_daily_count=3)
 def main():
     print("🚀 系統啟動：開始執行 NOVA 每日採集排程...")
     
-    # 1. 讀取每日目標總配額
-    daily_quota = int(os.getenv("TARGET_DAILY_COUNT", 3))
+    env_target = os.getenv("TARGET_DAILY_COUNT")
     
-    # 2. 檢查今天已經用掉了多少配額
+    if env_target:
+        try:
+            DAILY_QUOTA = int(env_target)
+            print(f"⚙️ 偵測到環境設定：每日目標調整為 {DAILY_QUOTA} 筆。")
+        except ValueError:
+            DAILY_QUOTA = 5
+            print(f"⚠️ 環境變數格式錯誤，回歸預設值：{DAILY_QUOTA} 筆。")
+    else:
+        DAILY_QUOTA = 5
+        print(f"ℹ️ 未偵測到環境設定，使用系統預設：{DAILY_QUOTA} 筆。")
+    
+    # 檢查今天已經用掉了多少配額
     already_added = SupabaseManager.get_today_added_count()
-    
-    # 3. 計算今天還剩下多少額度可以用
-    remaining_quota = daily_quota - already_added
+    remaining_quota = DAILY_QUOTA - already_added
     
     if remaining_quota <= 0:
-        print(f"🛑 今日配額已滿 ({already_added}/{daily_quota})。為了你的學習品質與 API 預算，今天不再抓取新單字。")
+        print(f"🛑 今日配額已滿 ({already_added}/{DAILY_QUOTA})。為了你的學習品質與 API 預算，今天不再抓取新單字。")
         return
     
     print(f"📊 今日狀態：已完成 {already_added} 個，尚有 {remaining_quota} 個名額。")
     
-    # 4. 抓取材料
-    df_material = fetch_and_extract_daily_vocab()
+    candidates = fetch_diverse_learning_materials()
     
-    # 5. 執行產線，只填滿「剩餘」的配額
-    mass_produce_flashcards_with_refresh(df_material, target_daily_count=remaining_quota)
+    # 執行產線，填滿剩餘配額
+    mass_produce_flashcards_with_refresh(candidates, target_daily_count=remaining_quota)
     
-    print("🎉 NOVA 每日採集排程執行完畢！")
+    print("\n🎉 NOVA 每日採集排程執行完畢！")
 
 if __name__ == "__main__":
     main()
