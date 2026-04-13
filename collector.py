@@ -155,11 +155,11 @@ def assessor_node(state):
     print(f"   ⚖️ [評估中] 判斷 '{state['current_word']}' 是否達標...")
     prompt = ChatPromptTemplate.from_messages([
         ("system", '你是極度嚴格的單字難度評估員，只能輸出 JSON。輸出格式請嚴格遵守：{{ "is_suitable": false, "reason": "太簡單" }}'),
-        ("user", "判斷單字 '{word}' 是否達 TOEIC 850 / CEFR C1 進階難度。如果是國中、高中基礎單字 (如 empty, there, monday, first 等) 請一律給 false。")
+        ("user", "判斷單字 '{word}' 是否達 TOEIC 850 / CEFR C1 進階難度。如果是太簡單的國中、高中基礎單字 (如 empty, there, monday, first 等) 請一律給 false。")
     ])
     res = (prompt | llm_assessor | parser).invoke({"word": state['current_word']})
     
-    # 防呆機制：確保 LLM 回傳的是真正的 Boolean
+    # 確保 LLM 回傳的是真正的 Boolean
     is_suitable = res.get("is_suitable", True)
     if str(is_suitable).lower() == 'false':
         is_suitable = False
@@ -169,11 +169,15 @@ def assessor_node(state):
 
 def teacher_node(state):
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是專業的英文老師，只能輸出 JSON。"),
+        ("system", "你是專業嚴謹的英文老師，只能輸出 JSON。"),
         # 加入「語塊 (Lexical Chunk)」感知指令
         ("user", """
         請為單字 '{word}' 在原句 '{context}' 中製作記憶卡。
-        【⚠️ 核心規則】：請檢視原句，如果 '{word}' 是某個「片語」或「固定搭配詞」(例如 set up, consist of, take for granted) 的一部分，請自動將「整個片語」當作本次的教學主體！
+        【核心規則】：
+        請檢視原句，如果 '{word}' 是某個「片語」或「固定搭配詞」
+        (例如 set up, consist of, take for granted) 的一部分，
+        自動將「整個片語」當作本次的教學主體！
+        
         
         輸出 JSON 需包含以下 key：
         word (請填入該單字或完整片語),
@@ -199,7 +203,7 @@ def examiner_node(state):
         ("user", """
         請針對焦點詞彙 '{word}' 設計一題四選一的英文填空題。
         
-        【⚠️ 核心規則 (必須遵守不得違反!題目及選項必須使用英文撰寫)】：
+        【核心規則 (必須遵守不得違反!題目及選項必須使用英文撰寫)】：
         1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% totally in English**，絕對不允許出現任何中文字！
         2. 挖空規則：如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
         3. 選項對稱：選項 (A, B, C, D) 的長度、時態與結構必須一致。
@@ -226,7 +230,8 @@ def reviewer_node(state):
         【🛡️ QA 品管任務】：
         1. 檢查老師資料的 'example_sentence_en'：**必須是全英文**。
         2. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」，ALL IN ENGLISH。
-        3. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語。
+        3. 考官資料的 'question' 裡面需要包含將'{word}'挖空的部分(用 _____ 取代)，不可提前洩題，答案僅出現在選項與解析。
+        4. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語法並加上適當標點符號。
         
         【待潤飾老師資料】：
         {teacher_data}
