@@ -246,7 +246,8 @@ def reviewer_node(state):
     try:
         raw_res = (prompt | llm_reviewer | parser).invoke({
             "teacher_data": state.get('raw_teacher_data', {}),
-            "quiz_data": state.get('raw_quiz_data', {})
+            "quiz_data": state.get('raw_quiz_data', {}),
+            "word": state['current_word']
         })
         final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
         final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
