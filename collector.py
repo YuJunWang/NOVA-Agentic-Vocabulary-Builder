@@ -384,40 +384,89 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
                 print(f"   ❌ 處理 '{target_word}' 發生錯誤: {e}")
 
 # ==========================================
-# 6. 主排程器 (Main Execution)
+# 6. 掃地機器人 (更新Embedding)
+# ==========================================
+def sync_missing_embeddings():
+    """
+    🧹 掃地機器人：自動掃描 Supabase 中沒有向量的資料並進行編碼
+    """
+    print("\n🔍 [自癒機制] 正在檢查是否有單字需要注入語意大腦...")
+    
+    # 1. 找出所有 word_embedding 為空的記錄
+    response = supabase.table("llm_generation_cache").select("*").is_("word_embedding", "null").execute()
+    records = response.data
+    
+    if not records:
+        print("   ✅ 檢查完畢：目前資料庫中所有單字皆具備完整向量，無需更新。")
+        return
+
+    print(f"   ⚠️ 發現 {len(records)} 筆單字尚未編碼。正在載入 HuggingFace 模型 (all-MiniLM-L6-v2)...")
+    
+    # 2. 延遲載入模型以節省一般產線資源
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    
+    for record in records:
+        word = record['word']
+        context = record.get('news_context', '')
+        example_content = record.get('teacher_card', '')
+        
+        try:
+            # 計算三維向量
+            word_vec = embeddings.embed_query(word)
+            context_vec = embeddings.embed_query(context) if context else None
+            example_vec = embeddings.embed_query(example_content) if example_content else None
+            
+            # 更新回資料庫
+            update_payload = {"word_embedding": word_vec}
+            if context_vec: update_payload["context_embedding"] = context_vec
+            if example_vec: update_payload["example_embedding"] = example_vec
+            
+            supabase.table("llm_generation_cache").update(update_payload).eq("word", word).execute()
+            print(f"   ✅ '{word}' 語意編碼成功！")
+            
+        except Exception as e:
+            print(f"   ❌ '{word}' 編碼失敗: {e}")
+
+    print("✨ 所有資料已補齊向量大腦，產線運作正常。")
+
+# ==========================================
+# 7. 主排程器 (Main Execution)
 # ==========================================
 def main():
-    print("🚀 系統啟動：開始執行 NOVA 每日採集排程...")
+    print("🚀 系統啟動：開始執行 NOVA 每日採集排程...\n")
     
-    env_target = os.getenv("TARGET_DAILY_COUNT")
-    
-    if env_target:
-        try:
-            DAILY_QUOTA = int(env_target)
-            print(f"⚙️ 偵測到環境設定：每日目標調整為 {DAILY_QUOTA} 筆。")
-        except ValueError:
-            DAILY_QUOTA = 5
-            print(f"⚠️ 環境變數格式錯誤，回歸預設值：{DAILY_QUOTA} 筆。")
-    else:
+    try:
+        DAILY_QUOTA = int(os.getenv("TARGET_DAILY_COUNT", 5))
+        print(f"⚙️ 系統設定：每日目標配額為 {DAILY_QUOTA} 筆。")
+    except ValueError:
         DAILY_QUOTA = 5
-        print(f"ℹ️ 未偵測到環境設定，使用系統預設：{DAILY_QUOTA} 筆。")
+        print(f"⚠️ 警告：環境變數格式錯誤，回歸預設值 {DAILY_QUOTA} 筆。")
     
     # 檢查今天已經用掉了多少配額
     already_added = SupabaseManager.get_today_added_count()
     remaining_quota = DAILY_QUOTA - already_added
     
-    if remaining_quota <= 0:
-        print(f"🛑 今日配額已滿 ({already_added}/{DAILY_QUOTA})。為了你的學習品質與 API 預算，今天不再抓取新單字。")
-        return
-    
-    print(f"📊 今日狀態：已完成 {already_added} 個，尚有 {remaining_quota} 個名額。")
-    
-    candidates = fetch_diverse_learning_materials()
-    
-    # 執行產線，填滿剩餘配額
-    mass_produce_flashcards_with_refresh(candidates, target_daily_count=remaining_quota)
-    
-    print("\n🎉 NOVA 每日採集排程執行完畢！")
+    try:
+        if remaining_quota <= 0:
+            print(f"🛑 今日配額已滿 ({already_added}/{DAILY_QUOTA})。跳過新單字抓取階段。")
+        else:
+            print(f"📊 今日狀態：已完成 {already_added} 個，尚需補充 {remaining_quota} 個。")
+            candidates = fetch_diverse_learning_materials()
+            
+            # 執行產線，填滿剩餘配額
+            mass_produce_flashcards_with_refresh(candidates, target_daily_count=remaining_quota)
+            
+    except Exception as e:
+        # 如果中途遇到 LLM 罷工、新聞網站連不上等意外，系統不會整個死掉
+        print(f"\n❌ [系統異常] 產線執行過程中發生錯誤: {e}")
+        
+    finally:
+        print("\n=============================================")
+        sync_missing_embeddings()  # 智能掃地機器人出動！
+        print("=============================================")
+        print("\n🎉 NOVA 每日採集與自我修復排程執行完畢！")
+
 
 if __name__ == "__main__":
     main()
