@@ -402,7 +402,7 @@ def sync_missing_embeddings():
     # 使用 .or_ 語法確保兩者只要有一個缺失就補考
     response = supabase.table("llm_generation_cache") \
         .select("*") \
-        .or_("word_embedding.is.null,example_embedding.is.null") \
+        .is_("example_embedding", "null") \
         .execute()
         
     records = response.data
