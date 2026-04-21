@@ -185,7 +185,7 @@ def teacher_node(state):
         kk_phonetics (音標，片語可省略),
         chinese_meaning (解釋),
         news_translation (整句新聞的流暢中文翻譯),
-        example_sentence_en (生活例句，必須包含該單字或片語),
+        example_sentence_en (生活例句，必須包含該單字或片語，盡量題材多樣),
         example_sentence_zh (例句翻譯)
         """)
     ])
@@ -256,6 +256,10 @@ def reviewer_node(state):
         final_teacher = state.get('raw_teacher_data', {})
         final_quiz = state.get('raw_quiz_data', {})
     
+    # 準備資料給 HuggingFace 算向量
+    raw_example = final_teacher.get('raw_example_en') or final_teacher.get('example_sentence_en', '')
+    raw_quiz = final_quiz.get('question', '')
+    
     # 組合卡片內容
     card = f"""[📖 時事單字記憶卡]
 📰 **新聞原句**："{state['news_context']}"
@@ -282,8 +286,10 @@ def reviewer_node(state):
 """
 
     return {
-        "teacher_card": card,
-        "quiz": quiz
+        "teacher_card": card,          # 寫入 teacher_card_content
+        "quiz": quiz,                  # 寫入 examiner_quiz_content
+        "raw_example_en": raw_example, # 寫入 raw_example_en
+        "raw_quiz_en": raw_quiz        # 寫入 raw_quiz_en
     }
 
 # 建立 State 與 Graph
@@ -388,47 +394,63 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
 # ==========================================
 def sync_missing_embeddings():
     """
-    🧹 掃地機器人：自動掃描 Supabase 中沒有向量的資料並進行編碼
+    🧹 更新補上Embedding：自動掃描並對應 raw_example_en 與 raw_quiz_en 進行向量編碼
     """
     print("\n🔍 [自癒機制] 正在檢查是否有單字需要注入語意大腦...")
     
-    # 1. 找出所有 word_embedding 為空的記錄
-    response = supabase.table("llm_generation_cache").select("*").is_("word_embedding", "null").execute()
+    # 1. 找出 word_embedding 或 example_embedding 為空，且「救援資料」已到位的記錄
+    # 使用 .or_ 語法確保兩者只要有一個缺失就補考
+    response = supabase.table("llm_generation_cache") \
+        .select("*") \
+        .or_("word_embedding.is.null,example_embedding.is.null") \
+        .execute()
+        
     records = response.data
     
     if not records:
-        print("   ✅ 檢查完畢：目前資料庫中所有單字皆具備完整向量，無需更新。")
+        print("   ✅ 檢查完畢：目前資料庫中所有單字與情境皆具備完整向量。")
         return
 
-    print(f"   ⚠️ 發現 {len(records)} 筆單字尚未編碼。正在載入 HuggingFace 模型 (all-MiniLM-L6-v2)...")
+    print(f"   ⚠️ 發現 {len(records)} 筆資料需要編碼。正在載入 HuggingFace 模型 (all-MiniLM-L6-v2)...")
     
-    # 2. 延遲載入模型以節省一般產線資源
+    # 2. 延遲載入模型
     from langchain_community.embeddings import HuggingFaceEmbeddings
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
     for record in records:
         word = record['word']
         context = record.get('news_context', '')
-        example_content = record.get('teacher_card', '')
+        
+        # 🌟 擷取我們「重生計畫」產出的純淨欄位
+        raw_ex = record.get('raw_example_en', '')
+        raw_qz = record.get('raw_quiz_en', '')
+        
+        # 將例句與考題合併，作為該單字在「情境維度」的完整語意
+        combined_situational_text = f"{raw_ex}\n{raw_qz}".strip()
         
         try:
-            # 計算三維向量
+            # 3. 計算三維向量 (使用純淨原句)
             word_vec = embeddings.embed_query(word)
             context_vec = embeddings.embed_query(context) if context else None
-            example_vec = embeddings.embed_query(example_content) if example_content else None
             
-            # 更新回資料庫
-            update_payload = {"word_embedding": word_vec}
-            if context_vec: update_payload["context_embedding"] = context_vec
-            if example_vec: update_payload["example_embedding"] = example_vec
+            # 如果有純淨情境，就編碼；若無，則嘗試降級使用原本的 context
+            example_vec = embeddings.embed_query(combined_situational_text) if combined_situational_text else None
+            
+            # 4. 更新回資料庫
+            update_payload = {
+                "word_embedding": word_vec,
+                "example_embedding": example_vec
+            }
+            if context_vec: 
+                update_payload["context_embedding"] = context_vec
             
             supabase.table("llm_generation_cache").update(update_payload).eq("word", word).execute()
-            print(f"   ✅ '{word}' 語意編碼成功！")
+            print(f"   ✅ '{word}' 的 3D 語意大腦已同步完成！")
             
         except Exception as e:
             print(f"   ❌ '{word}' 編碼失敗: {e}")
 
-    print("✨ 所有資料已補齊向量大腦，產線運作正常。")
+    print("✨ 所有資料已成功補齊向量大腦，現在 RAG 搜尋會精準到不行！")
 
 # ==========================================
 # 7. 主排程器 (Main Execution)

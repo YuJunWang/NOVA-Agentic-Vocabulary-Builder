@@ -8,3 +8,6 @@ __pycache__/
 
 # OS generated files
 .DS_Store
+
+# TOOLS
+tools/
