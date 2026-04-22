@@ -316,6 +316,8 @@ class AgentState(TypedDict):
     raw_quiz_data: Optional[dict]
     teacher_card: Optional[str]
     quiz: Optional[str]
+    raw_example_en: Optional[str]
+    raw_quiz_en: Optional[str]
 
 workflow = StateGraph(AgentState)
 workflow.add_node("Assessor", assessor_node)
