@@ -50,26 +50,33 @@ class SupabaseManager:
         return response.data[0] if response.data else None
 
     @staticmethod
-    def update_generation_result(word, context, teacher_card, quiz, current_count):
+    # 🌟 參數新增了 raw_example_en 與 raw_quiz_en
+    def update_generation_result(word, context, teacher_card, quiz, current_count, raw_example_en="", raw_quiz_en=""):
         data = {
             "news_context": context,
             "teacher_card_content": teacher_card,
             "examiner_quiz_content": quiz,
+            "raw_example_en": raw_example_en,
+            "raw_quiz_en": raw_quiz_en,
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "update_count": current_count + 1
         }
         supabase.table("llm_generation_cache").update(data).eq("word", word.lower()).execute()
 
     @staticmethod
-    def save_new_generation(word, context, teacher_card, quiz):
+    # 🌟 參數新增了 raw_example_en 與 raw_quiz_en
+    def save_new_generation(word, context, teacher_card, quiz, raw_example_en="", raw_quiz_en=""):
         data = {
             "word": word.lower(),
             "news_context": context,
             "teacher_card_content": teacher_card,
             "examiner_quiz_content": quiz,
+            "raw_example_en": raw_example_en,
+            "raw_quiz_en": raw_quiz_en,
             "update_count": 0
         }
         supabase.table("llm_generation_cache").insert(data).execute()
+
     @staticmethod
     def get_today_added_count():
         """查詢今天（UTC時間）已經新增了多少個單字"""
@@ -223,15 +230,15 @@ def examiner_node(state):
 def reviewer_node(state):
     print(f"   🔍 [QA總編輯品管中] 正在檢查與優化 '{state['current_word']}'...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "你是嚴格的教材總編輯兼 QA 品管員。只能輸出 JSON。"),
+        ("system", "你是嚴格的教材總編輯兼 QA 品管員。只能輸出純 JSON 格式。"),
         ("user", """
-        請檢視並優化以下兩組 JSON 資料。
+        請檢視並優化以下兩組 JSON 資料，並萃取純淨的英文原句供系統做向量檢索。
         
         【🛡️ QA 品管任務】：
         1. 檢查老師資料的 'example_sentence_en'：**必須是全英文**。
-        2. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻將其改寫/翻譯回符合 C1 難度的「全英文」，ALL IN ENGLISH。
-        3. 考官資料的 'question' 裡面需要包含將'{word}'挖空的部分(用 _____ 取代)，不可提前洩題，答案僅出現在選項與解析。
-        4. 優化中文：將所有的中文欄位 (news_translation, chinese_meaning, example_sentence_zh, translation, explanation) 潤飾成通順的台灣慣用語法並加上適當標點符號。
+        2. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻改寫為「全英文」。
+        3. 考官資料的 'question' 必須將焦點單字 '{word}' 挖空 (用 _____ 取代)，不可提前洩題。
+        4. 優化中文：將所有的中文欄位潤飾成通順的台灣慣用語法並加上標點符號。
         
         【待潤飾老師資料】：
         {teacher_data}
@@ -239,7 +246,13 @@ def reviewer_node(state):
         【待潤飾考官資料】：
         {quiz_data}
         
-        請輸出 JSON，必須包含兩個 Key：'polished_teacher' 與 'polished_quiz'，裡面分別包裝優化後的完整字典 (保持原本的 key 不變)。
+        請輸出 JSON，必須嚴格包含以下 4 個 Key：
+        {{
+            "polished_teacher": {{ ...保持原本 key 結構的優化後老師資料... }},
+            "polished_quiz": {{ ...保持原本 key 結構的優化後考官資料... }},
+            "raw_example_en": "從老師資料中提取的 example_sentence_en (純英文，不可有中文與 Markdown)",
+            "raw_quiz_en": "請將考官資料的 question 裡的 _____ 替換成正確單字 '{word}' 後的「完整純英文原句」(不可有底線與 Markdown)"
+        }}
         """)
     ])
     
@@ -251,14 +264,16 @@ def reviewer_node(state):
         })
         final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
         final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
+        
+        raw_example = raw_res.get('raw_example_en', final_teacher.get('example_sentence_en', ''))
+        raw_quiz = raw_res.get('raw_quiz_en', '')
+        
     except Exception as e:
         print(f"   ⚠️ [警告] 總編輯罷工，啟用備用原始資料！錯誤: {e}")
         final_teacher = state.get('raw_teacher_data', {})
         final_quiz = state.get('raw_quiz_data', {})
-    
-    # 準備資料給 HuggingFace 算向量
-    raw_example = final_teacher.get('raw_example_en') or final_teacher.get('example_sentence_en', '')
-    raw_quiz = final_quiz.get('question', '')
+        raw_example = final_teacher.get('example_sentence_en', '')
+        raw_quiz = "" # 降級處理
     
     # 組合卡片內容
     card = f"""[📖 時事單字記憶卡]
@@ -288,8 +303,8 @@ def reviewer_node(state):
     return {
         "teacher_card": card,          # 寫入 teacher_card_content
         "quiz": quiz,                  # 寫入 examiner_quiz_content
-        "raw_example_en": raw_example, # 寫入 raw_example_en
-        "raw_quiz_en": raw_quiz        # 寫入 raw_quiz_en
+        "raw_example_en": raw_example, # 寫入 raw_example_en (純淨版)
+        "raw_quiz_en": raw_quiz        # 寫入 raw_quiz_en (已填好單字的純淨版)
     }
 
 # 建立 State 與 Graph
@@ -330,7 +345,7 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
     
     success_count = 0 
     
-    # 🌟 改用 enumerate 來同時取得進度與資料
+    # 同時取得進度與資料
     for attempts, item in enumerate(candidates, 1):
         
         if success_count >= target_daily_count:
@@ -374,14 +389,25 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
                     print(f"   🛑 淘汰 (難度不符或格式錯誤)，尋找下一個。")
                     continue 
                 
+                # 準備打包要存入資料庫的資料
                 teacher_card = final_state.get('teacher_card', '')
                 quiz = final_state.get('quiz', '')
                 
+                # 從 LangGraph 的狀態中萃取出 QA 總編輯準備好的純淨句子
+                raw_example = final_state.get('raw_example_en', '')
+                raw_quiz = final_state.get('raw_quiz_en', '')
+                
                 if is_update:
-                    SupabaseManager.update_generation_result(target_word, context, teacher_card, quiz, current_count)
+                    # 寫入更新：把 raw_example, raw_quiz 傳給 SupabaseManager
+                    SupabaseManager.update_generation_result(
+                        target_word, context, teacher_card, quiz, current_count, raw_example, raw_quiz
+                    )
                     print(f"   ✅ '{target_word}' 雲端更新完成！")
                 else:
-                    SupabaseManager.save_new_generation(target_word, context, teacher_card, quiz)
+                    # 寫入新增：把 raw_example, raw_quiz 傳給 SupabaseManager
+                    SupabaseManager.save_new_generation(
+                        target_word, context, teacher_card, quiz, raw_example, raw_quiz
+                    )
                     print(f"   ✅ '{target_word}' 已成功存入雲端！")
                     
                 success_count += 1 
@@ -421,7 +447,6 @@ def sync_missing_embeddings():
         word = record['word']
         context = record.get('news_context', '')
         
-        # 🌟 擷取我們「重生計畫」產出的純淨欄位
         raw_ex = record.get('raw_example_en', '')
         raw_qz = record.get('raw_quiz_en', '')
         
