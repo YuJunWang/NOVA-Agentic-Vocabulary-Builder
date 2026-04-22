@@ -360,7 +360,6 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
     
     success_count = 0 
     
-    # 同時取得進度與資料
     for attempts, item in enumerate(candidates, 1):
         
         if success_count >= target_daily_count:
@@ -369,7 +368,7 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
             
         target_word = item['Target_Word'].lower()
         context = item['News_Context']
-        category = item.get('Category', 'Unknown') # 這個字來自哪個領域
+        category = item.get('Category', 'Unknown') 
         
         print("-" * 50)
         print(f"⏳ [產能 {success_count}/{target_daily_count} | 消耗候選 {attempts}/{len(candidates)}]")
@@ -396,30 +395,40 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
 
         if should_generate:
             try:
-                # 啟動 LangGraph 多代理人工廠
                 final_state = app.invoke({"current_word": target_word, "news_context": context})
                 
-                # 攔截機制：如果評估員判定太簡單，直接跳過不存檔
                 if not final_state.get("is_suitable", False):
                     print(f"   🛑 淘汰 (難度不符或格式錯誤)，尋找下一個。")
                     continue 
                 
-                # 準備打包要存入資料庫的資料
+                # 📦 1. 取得排版好的卡片
                 teacher_card = final_state.get('teacher_card', '')
                 quiz = final_state.get('quiz', '')
                 
-                # 從 LangGraph 的狀態中萃取出 QA 總編輯準備好的純淨句子
-                raw_example = final_state.get('raw_example_en', '')
-                raw_quiz = final_state.get('raw_quiz_en', '')
+                # 🛡️ 2. 終極防線：獲取純淨句子。如果 LangGraph 沒傳好，我們自己從 raw_data 挖！
+                raw_example = final_state.get('raw_example_en')
+                if not raw_example:
+                    # 從老師原始資料裡強制挖出例句
+                    raw_teacher = final_state.get('raw_teacher_data', {})
+                    raw_example = raw_teacher.get('example_sentence_en', '')
+
+                raw_quiz = final_state.get('raw_quiz_en')
+                if not raw_quiz:
+                    # 從考官原始資料裡挖出考題，並自己替換底線
+                    raw_exam_data = final_state.get('raw_quiz_data', {})
+                    q_text = raw_exam_data.get('question', '')
+                    raw_quiz = q_text.replace('_____', target_word).replace('[_____]', target_word)
+
+                # 🛡️ 3. 強制轉為字串，徹底封殺 None。如果真的挖不到，給予明確錯誤字眼，避免資料庫顯示 NULL
+                raw_example = str(raw_example).strip() if raw_example else "ERROR_EMPTY_EXAMPLE"
+                raw_quiz = str(raw_quiz).strip() if raw_quiz else "ERROR_EMPTY_QUIZ"
                 
                 if is_update:
-                    # 寫入更新：把 raw_example, raw_quiz 傳給 SupabaseManager
                     SupabaseManager.update_generation_result(
                         target_word, context, teacher_card, quiz, current_count, raw_example, raw_quiz
                     )
                     print(f"   ✅ '{target_word}' 雲端更新完成！")
                 else:
-                    # 寫入新增：把 raw_example, raw_quiz 傳給 SupabaseManager
                     SupabaseManager.save_new_generation(
                         target_word, context, teacher_card, quiz, raw_example, raw_quiz
                     )
