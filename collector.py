@@ -278,6 +278,8 @@ def reviewer_node(state):
         raw_example = str(raw_example).strip() if raw_example else ""
         raw_quiz = str(raw_quiz).strip() if raw_quiz else ""
         
+        print(f"   ✅ 數據萃取成功：Example=[{raw_example[:30]}...], Quiz=[{raw_quiz[:30]}...]")
+        
     except Exception as e:
         print(f"   ⚠️ [警告] 總編輯罷工，啟用備用原始資料！錯誤: {e}")
         final_teacher = state.get('raw_teacher_data', {})
@@ -286,7 +288,8 @@ def reviewer_node(state):
         
         # 降級時也自己填補底線
         q_text = final_quiz.get('question', '')
-        raw_quiz = str(q_text.replace('_____', state['current_word'])).strip()
+        raw_quiz = str(q_text.replace('_____', state['current_word']).replace('[_____]', state['current_word'])).strip()
+        print(f"   ⚠️ 啟動備用數據：Example=[{raw_example[:30]}...], Quiz=[{raw_quiz[:30]}...]")
     
     # 組合卡片內容
     card = f"""[📖 時事單字記憶卡]
@@ -348,7 +351,7 @@ app = workflow.compile()
 # ==========================================
 # 5. 雲端量產工廠
 # ==========================================
-def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
+def mass_produce_flashcards_with_refresh(candidates, target_daily_count=5):
     """
     負責接收提煉好的單字 List，直到「成功」產出指定數量後才停止。
     """
@@ -405,23 +408,27 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=3):
                 teacher_card = final_state.get('teacher_card', '')
                 quiz = final_state.get('quiz', '')
                 
-                # 🛡️ 2. 終極防線：獲取純淨句子。如果 LangGraph 沒傳好，我們自己從 raw_data 挖！
+                # 🛡️ 2. 終極防線：獲取純淨句子。
                 raw_example = final_state.get('raw_example_en')
-                if not raw_example:
-                    # 從老師原始資料裡強制挖出例句
+                # 攔截空值、以及被誤轉為 "None" 的字串
+                if not raw_example or str(raw_example).strip() == "None" or str(raw_example).strip() == "":
+                    print("   🔴 [嚴重錯誤] raw_example 遺失，嘗試從原始資料手動補救...")
                     raw_teacher = final_state.get('raw_teacher_data', {})
                     raw_example = raw_teacher.get('example_sentence_en', '')
 
                 raw_quiz = final_state.get('raw_quiz_en')
-                if not raw_quiz:
-                    # 從考官原始資料裡挖出考題，並自己替換底線
+                if not raw_quiz or str(raw_quiz).strip() == "None" or str(raw_quiz).strip() == "":
+                    print("   🔴 [嚴重錯誤] raw_quiz 遺失，嘗試從原始資料手動補救...")
                     raw_exam_data = final_state.get('raw_quiz_data', {})
                     q_text = raw_exam_data.get('question', '')
                     raw_quiz = q_text.replace('_____', target_word).replace('[_____]', target_word)
 
-                # 🛡️ 3. 強制轉為字串，徹底封殺 None。如果真的挖不到，給予明確錯誤字眼，避免資料庫顯示 NULL
+                # 🛡️ 3. 強制轉為字串，給予明確錯誤字眼，避免資料庫顯示 NULL
                 raw_example = str(raw_example).strip() if raw_example else "ERROR_EMPTY_EXAMPLE"
                 raw_quiz = str(raw_quiz).strip() if raw_quiz else "ERROR_EMPTY_QUIZ"
+                
+                # 📊 入庫前最後監視器：印出準備存入的句子片段
+                print(f"   📥 [準備寫入DB] Example: [{raw_example[:30]}...] | Quiz: [{raw_quiz[:30]}...]")
                 
                 if is_update:
                     SupabaseManager.update_generation_result(
@@ -503,7 +510,7 @@ def main():
     print("🚀 系統啟動：開始執行 NOVA 每日採集排程...\n")
     
     try:
-        DAILY_QUOTA = int(os.getenv("TARGET_DAILY_COUNT", 5))
+        DAILY_QUOTA = int(os.getenv("TARGET_DAILY_COUNT", 3))
         print(f"⚙️ 系統設定：每日目標配額為 {DAILY_QUOTA} 筆。")
     except ValueError:
         DAILY_QUOTA = 5
