@@ -103,9 +103,9 @@ venv\Scripts\activate       # Windows
 pip install -r requirements.txt
 ```
 
-### 3. 配置金鑰防護罩 (Secret Management)
-本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。
+### 3. Supabase 資料庫初始化 (Database initialization)
 請先到 [supabase](https://supabase.com/) 申請一個project，取得ID及Key
+
 使用以下的SQL指令建立資料庫
 ```bash
 -- ==============================================================================
@@ -156,6 +156,10 @@ USING hnsw (example_embedding vector_cosine_ops);
 -- ==============================================================================
 ```
 
+
+### 4. 配置金鑰防護罩 (Secret Management)
+本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。
+
 接著在本地專案根目錄建立以下兩個檔案：
 
 **`.env` (供後端 `collector.py` 讀取)**
@@ -174,7 +178,7 @@ GROQ_API_KEY = "gsk_your_api_key_here"
 ```
 
 
-### 4. 啟動系統 (Run the System)
+### 5. 啟動系統 (Run the System)
 
 **啟動資訊產線 (後端大腦測試)：**
 ```bash
