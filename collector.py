@@ -265,15 +265,28 @@ def reviewer_node(state):
         final_teacher = raw_res.get('polished_teacher') or state.get('raw_teacher_data', {})
         final_quiz = raw_res.get('polished_quiz') or state.get('raw_quiz_data', {})
         
-        raw_example = raw_res.get('raw_example_en', final_teacher.get('example_sentence_en', ''))
-        raw_quiz = raw_res.get('raw_quiz_en', '')
+        raw_example = raw_res.get('raw_example_en')
+        if not raw_example:
+            raw_example = final_teacher.get('example_sentence_en', '')
+            
+        raw_quiz = raw_res.get('raw_quiz_en')
+        if not raw_quiz:
+            # 自己把測驗題的底線換回原本的單字
+            q_text = final_quiz.get('question', '')
+            raw_quiz = q_text.replace('_____', state['current_word']).replace('[_____]', state['current_word'])
+            
+        raw_example = str(raw_example).strip() if raw_example else ""
+        raw_quiz = str(raw_quiz).strip() if raw_quiz else ""
         
     except Exception as e:
         print(f"   ⚠️ [警告] 總編輯罷工，啟用備用原始資料！錯誤: {e}")
         final_teacher = state.get('raw_teacher_data', {})
         final_quiz = state.get('raw_quiz_data', {})
-        raw_example = final_teacher.get('example_sentence_en', '')
-        raw_quiz = "" # 降級處理
+        raw_example = str(final_teacher.get('example_sentence_en', '')).strip()
+        
+        # 降級時也自己填補底線
+        q_text = final_quiz.get('question', '')
+        raw_quiz = str(q_text.replace('_____', state['current_word'])).strip()
     
     # 組合卡片內容
     card = f"""[📖 時事單字記憶卡]
@@ -301,10 +314,10 @@ def reviewer_node(state):
 """
 
     return {
-        "teacher_card": card,          # 寫入 teacher_card_content
-        "quiz": quiz,                  # 寫入 examiner_quiz_content
-        "raw_example_en": raw_example, # 寫入 raw_example_en (純淨版)
-        "raw_quiz_en": raw_quiz        # 寫入 raw_quiz_en (已填好單字的純淨版)
+        "teacher_card": card,          
+        "quiz": quiz,                  
+        "raw_example_en": raw_example,
+        "raw_quiz_en": raw_quiz
     }
 
 # 建立 State 與 Graph
@@ -426,8 +439,6 @@ def sync_missing_embeddings():
     """
     print("\n🔍 [自癒機制] 正在檢查是否有單字需要注入語意大腦...")
     
-    # 1. 找出 word_embedding 或 example_embedding 為空，且「救援資料」已到位的記錄
-    # 使用 .or_ 語法確保兩者只要有一個缺失就補考
     response = supabase.table("llm_generation_cache") \
         .select("*") \
         .is_("example_embedding", "null") \
@@ -441,7 +452,6 @@ def sync_missing_embeddings():
 
     print(f"   ⚠️ 發現 {len(records)} 筆資料需要編碼。正在載入 HuggingFace 模型 (all-MiniLM-L6-v2)...")
     
-    # 2. 延遲載入模型
     from langchain_community.embeddings import HuggingFaceEmbeddings
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
@@ -449,21 +459,20 @@ def sync_missing_embeddings():
         word = record['word']
         context = record.get('news_context', '')
         
-        raw_ex = record.get('raw_example_en', '')
-        raw_qz = record.get('raw_quiz_en', '')
+        raw_ex = record.get('raw_example_en') or ''
+        raw_qz = record.get('raw_quiz_en') or ''
         
-        # 將例句與考題合併，作為該單字在「情境維度」的完整語意
         combined_situational_text = f"{raw_ex}\n{raw_qz}".strip()
         
         try:
-            # 3. 計算三維向量 (使用純淨原句)
             word_vec = embeddings.embed_query(word)
             context_vec = embeddings.embed_query(context) if context else None
             
-            # 如果有純淨情境，就編碼；若無，則嘗試降級使用原本的 context
-            example_vec = embeddings.embed_query(combined_situational_text) if combined_situational_text else None
+            if combined_situational_text and combined_situational_text != "None\nNone":
+                example_vec = embeddings.embed_query(combined_situational_text)
+            else:
+                example_vec = None
             
-            # 4. 更新回資料庫
             update_payload = {
                 "word_embedding": word_vec,
                 "example_embedding": example_vec
@@ -478,7 +487,6 @@ def sync_missing_embeddings():
             print(f"   ❌ '{word}' 編碼失敗: {e}")
 
     print("✨ 所有資料已成功補齊向量大腦，現在 RAG 搜尋會精準到不行！")
-
 # ==========================================
 # 7. 主排程器 (Main Execution)
 # ==========================================
