@@ -144,9 +144,9 @@ CREATE TABLE IF NOT EXISTS llm_generation_cache (
     update_count INTEGER DEFAULT 0
 );
 
--- 3. 建立【SRS 進度追蹤表】(srs_progress)
+-- 3. 建立【SRS 進度追蹤表】(user_srs_progress)
 -- 用來記錄使用者對每個單字的熟悉程度與下次複習時間
-CREATE TABLE IF NOT EXISTS srs_progress (
+CREATE TABLE IF NOT EXISTS user_srs_progress (
     word TEXT PRIMARY KEY REFERENCES llm_generation_cache(word) ON DELETE CASCADE,
     easiness_factor FLOAT DEFAULT 2.5,     -- SM-2 演算法中的容易度因子
     interval INTEGER DEFAULT 0,            -- 複習間隔 (天數)
