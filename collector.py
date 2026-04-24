@@ -184,6 +184,11 @@ def teacher_node(state):
         請檢視原句，如果 '{word}' 是某個「片語」或「固定搭配詞」
         (例如 set up, consist of, take for granted) 的一部分，
         自動將「整個片語」當作本次的教學主體！
+         
+        【生活例句生成鐵則】：
+        你的 'example_sentence_en' 必須是「超級接地氣的日常對話或生活情境」，並且 **絕對禁止** 與新聞原句 '{context}' 的主題重疊！
+        - 如果新聞是「政治/財經/科技/戰爭」，你的例句就必須強制切換到：「辦公室八卦、情侶日常、點餐購物、旅遊迷路、朋友閒聊」等充滿人味的情境。
+        - 句子要有畫面感，不要寫像教科書一樣死板的句子。
         
         
         輸出 JSON 需包含以下 key：
@@ -192,8 +197,8 @@ def teacher_node(state):
         kk_phonetics (音標，片語可省略),
         chinese_meaning (解釋),
         news_translation (整句新聞的流暢中文翻譯),
-        example_sentence_en (生活例句，必須包含該單字或片語，盡量題材多樣),
-        example_sentence_zh (例句翻譯)
+        example_sentence_en (生活例句，必須包含該單字或片語，超級接地氣、完全脫離新聞主題的純英文生活例句),
+        example_sentence_zh (生活例句的台灣慣用語氣翻譯)
         """)
     ])
     # 傳入兩個變數給 LangChain
