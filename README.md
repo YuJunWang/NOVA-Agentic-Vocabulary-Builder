@@ -125,44 +125,44 @@ pip install -r requirements.txt
 -- 請將此腳本複製並貼上至 Supabase 的 SQL Editor 中執行
 -- ==============================================================================
 
--- 1. 開啟 pgvector 向量擴充功能 (RAG 核心)
+-- 1. 開啟向量擴充功能
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- 2. 建立核心單字庫 (llm_generation_cache)
+-- 2. 建立【教材緩存表】(llm_generation_cache)
 CREATE TABLE IF NOT EXISTS llm_generation_cache (
-    -- 核心識別 (Primary Key)
     word TEXT PRIMARY KEY,
-    
-    -- 原始新聞與排版內容
     news_context TEXT,
     teacher_card_content TEXT,
     examiner_quiz_content TEXT,
-    
-    -- 原始語料(embedding 使用)
     raw_example_en TEXT,
     raw_quiz_en TEXT,
-    
-    -- 3D 語意大腦 (配合 all-MiniLM-L6-v2 的 384 維度)
     word_embedding vector(384),
     context_embedding vector(384),
     example_embedding vector(384),
-    
-    -- 系統追蹤與配額計算欄位
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     update_count INTEGER DEFAULT 0
 );
 
--- 3. 建立向量索引 (HNSW) 以加速 RAG 語意搜尋效能 (可選，但強烈建議)
--- 針對 context_embedding 建立索引
-CREATE INDEX IF NOT EXISTS context_embedding_idx 
-ON llm_generation_cache 
-USING hnsw (context_embedding vector_cosine_ops);
+-- 3. 建立【SRS 進度追蹤表】(srs_progress)
+-- 用來記錄使用者對每個單字的熟悉程度與下次複習時間
+CREATE TABLE IF NOT EXISTS srs_progress (
+    word TEXT PRIMARY KEY REFERENCES llm_generation_cache(word) ON DELETE CASCADE,
+    easiness_factor FLOAT DEFAULT 2.5,     -- SM-2 演算法中的容易度因子
+    interval INTEGER DEFAULT 0,            -- 複習間隔 (天數)
+    repetition_count INTEGER DEFAULT 0,    -- 已成功連續複習次數
+    next_review_date TIMESTAMPTZ DEFAULT NOW(), -- 下次該複習的時間
+    last_reviewed_at TIMESTAMPTZ,          -- 上次複習的時間
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- 針對 example_embedding 建立索引
-CREATE INDEX IF NOT EXISTS example_embedding_idx 
-ON llm_generation_cache 
-USING hnsw (example_embedding vector_cosine_ops);
+-- 4. 建立效能索引
+-- 向量搜尋索引 (HNSW)
+CREATE INDEX IF NOT EXISTS context_embedding_idx ON llm_generation_cache USING hnsw (context_embedding vector_cosine_ops);
+CREATE INDEX IF NOT EXISTS example_embedding_idx ON llm_generation_cache USING hnsw (example_embedding vector_cosine_ops);
+
+-- SRS 查詢索引 (加速尋找今天到期的單字)
+CREATE INDEX IF NOT EXISTS srs_review_date_idx ON srs_progress (next_review_date);
 
 -- ==============================================================================
 -- ==============================================================================
