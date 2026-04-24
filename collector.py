@@ -64,8 +64,8 @@ class SupabaseManager:
         supabase.table("llm_generation_cache").update(data).eq("word", word.lower()).execute()
 
     @staticmethod
-    # 🌟 參數新增了 raw_example_en 與 raw_quiz_en
     def save_new_generation(word, context, teacher_card, quiz, raw_example_en="", raw_quiz_en=""):
+        # 1. 存入教材緩存表
         data = {
             "word": word.lower(),
             "news_context": context,
@@ -76,6 +76,20 @@ class SupabaseManager:
             "update_count": 0
         }
         supabase.table("llm_generation_cache").insert(data).execute()
+
+        # 2. 同步初始化 SRS 進度 (讓單字進入遺忘曲線)
+        srs_data = {
+            "word": word.lower(),
+            "easiness_factor": 2.5,        # 初始容易度
+            "interval": 0,                 # 初始間隔
+            "repetition_count": 0,         # 尚未開始複習
+            "next_review_date": datetime.now(timezone.utc).isoformat() 
+        }
+        try:
+            supabase.table("user_srs_progress").insert(srs_data).execute()
+            print(f"   📈 SRS 初始化完成：'{word}' 已加入複習排程。")
+        except Exception as e:
+            print(f"   ⚠️ SRS 初始化失敗 (可能已存在)：{e}")
 
     @staticmethod
     def get_today_added_count():
@@ -240,10 +254,11 @@ def reviewer_node(state):
         請檢視並優化以下兩組 JSON 資料，並萃取純淨的英文原句供系統做向量檢索。
         
         【🛡️ QA 品管任務】：
-        1. 檢查老師資料的 'example_sentence_en'：**必須是全英文**。
-        2. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻改寫為「全英文」。
-        3. 考官資料的 'question' 必須將焦點單字 '{word}' 挖空 (用 _____ 取代)，不可提前洩題。
-        4. 優化中文：將所有的中文欄位潤飾成通順的台灣慣用語法並加上標點符號。
+        1. 檢查所有焦點詞彙是否提取正確，確實為 '{word}' ，若不正確則需要重新生成資料。
+        2. 檢查老師資料的 'example_sentence_en'：**必須是全英文**。
+        3. 檢查考官資料的 'question' 與 'options'：**必須是全英文** 如果裡面不小心混入了「中文」，請你立刻改寫為「全英文」。
+        4. 考官資料的 'question' 必須將焦點單字 '{word}' 挖空 (用 _____ 取代)，不可提前洩題。
+        5. 優化中文：將所有的中文欄位潤飾成通順的台灣慣用語法並加上標點符號。
         
         【待潤飾老師資料】：
         {teacher_data}
