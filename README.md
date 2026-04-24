@@ -162,7 +162,7 @@ CREATE INDEX IF NOT EXISTS context_embedding_idx ON llm_generation_cache USING h
 CREATE INDEX IF NOT EXISTS example_embedding_idx ON llm_generation_cache USING hnsw (example_embedding vector_cosine_ops);
 
 -- SRS 查詢索引 (加速尋找今天到期的單字)
-CREATE INDEX IF NOT EXISTS srs_review_date_idx ON srs_progress (next_review_date);
+CCREATE INDEX IF NOT EXISTS user_srs_review_date_idx ON user_srs_progress (next_review_date);
 
 -- ==============================================================================
 -- ==============================================================================
