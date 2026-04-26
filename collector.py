@@ -58,7 +58,7 @@ class SupabaseManager:
             "examiner_quiz_content": quiz,
             "raw_example_en": raw_example_en,
             "raw_quiz_en": raw_quiz_en,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
             "update_count": current_count + 1
         }
         supabase.table("llm_generation_cache").update(data).eq("word", word.lower()).execute()
@@ -83,7 +83,7 @@ class SupabaseManager:
             "easiness_factor": 2.5,        # 初始容易度
             "interval": 0,                 # 初始間隔
             "repetition_count": 0,         # 尚未開始複習
-            "next_review_date": datetime.now(timezone.utc).isoformat() 
+            "next_review_date": datetime.now(timezone.utc).replace(microsecond=0).isoformat() 
         }
         try:
             supabase.table("user_srs_progress").insert(srs_data).execute()

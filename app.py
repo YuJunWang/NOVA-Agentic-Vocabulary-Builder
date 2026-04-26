@@ -14,6 +14,20 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
 
+from datetime import datetime
+
+def safe_parse_iso(date_str):
+    """🛠️ 萬用時間解析器：自動處理 Supabase 惱人的微秒位數問題"""
+    if not date_str:
+        return None
+    try:
+        # 嘗試直接解析 (適用於標準 6 位微秒或無微秒)
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    except ValueError:
+        # 如果報錯，用正則表達式把小數點後面的微秒強行拔掉
+        clean_str = re.sub(r'\.\d+(?=[+-])', '', date_str) 
+        return datetime.fromisoformat(clean_str.replace('Z', '+00:00'))
+
 # ==========================================
 # 1. 系統初始化與雲端連線
 # ==========================================
@@ -83,7 +97,7 @@ def router_agent(user_input):
 def fetch_srs_words(mode="review", limit=15):
     """📅 取詞工具：支援「複習舊字 (review)」與「學習新字 (new)」"""
     tw_tz = pytz.timezone('Asia/Taipei')
-    today_iso = datetime.now(tw_tz).isoformat()
+    today_iso = datetime.now(tw_tz).replace(microsecond=0).isoformat()
     
     query = supabase.table("user_srs_progress").select("word")
     
@@ -144,24 +158,31 @@ def semantic_search(query_text, mode="example", srs_filter="all", limit=10, thre
     user_progress = {p['word']: p for p in progress_res.data}
     
     tw_tz = pytz.timezone('Asia/Taipei')
-    today_iso = datetime.now(tw_tz).isoformat()
+    now_dt = datetime.now(tw_tz)
     
     final_cards = []
     for c in res.data:
         word = c['word']
         srs_data = user_progress.get(word)
         
-        # 預防沒有進度紀錄的孤兒單字
         rep_count = srs_data.get('repetition_count', 0) if srs_data else 0
-        next_date = srs_data.get('next_review_date', '2099-01-01') if srs_data else '2099-01-01'
+        next_date_str = srs_data.get('next_review_date') if srs_data else None
         
-        # 🌟 交集過濾邏輯
+        if next_date_str:
+            next_date_dt = safe_parse_iso(next_date_str)
+        else:
+            # 如果完全沒時間資料，給一個遠在天邊的未來時間
+            next_date_dt = datetime(2099, 1, 1, tzinfo=pytz.UTC)
+        
+        # 交集過濾邏輯
         if srs_filter == "new" and rep_count != 0:
-            continue # 不要舊字
-        if srs_filter == "review" and (rep_count == 0 or next_date > today_iso):
-            continue # 不要新字，且時間必須到期
+            continue
+        if srs_filter == "review":
+            # 如果是複習模式，排除「新字」或是「還沒到期(大於現在)」的字
+            if rep_count == 0 or next_date_dt > now_dt:
+                continue # 不要新字，且時間必須到期
             
-        # 🌟 組合完整的卡片資料 (將原本的空殼填入完整資料)
+        # 組合完整的卡片資料 (將原本的空殼填入完整資料)
         full_card = card_data_map.get(word, {})
         full_card['word'] = word
         full_card['srs'] = srs_data
