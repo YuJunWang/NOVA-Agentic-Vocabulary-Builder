@@ -101,7 +101,8 @@ NOVA-Agentic-Vocabulary-Builder/
 ├── .github/workflows/
 │   └── daily_cron.yml           # GitHub Actions 自動化排程劇本
 ├── data/
-│   └── vocab_advanced_clean.csv # 進階單字篩選字典 (本地端快取)
+│   ├── vocab_advanced_clean.csv # 進階單字篩選字典 (本地端快取)
+│   └── init.sql                 # 初始化supabase的SQL腳本
 ├── app.py                       # Streamlit 前端：SRS 演算法實作與互動介面
 ├── collector.py                 # 後端大腦：RSS 爬蟲、LangGraph 產線、資料庫同步
 ├── requirements.txt             # 環境相依套件清單
