@@ -131,7 +131,7 @@ pip install -r requirements.txt
 ### 3. Supabase 資料庫初始化 (Database initialization)
 請先到 [supabase](https://supabase.com/) 申請一個project，取得ID及Key
 
-👉 **[點擊此處查看並取得完整的 Supabase 初始化 SQL 腳本 (data/init.sql)](./data/init.sql)**
+👉 **點擊此處查看並取得完整的 [Supabase 初始化 SQL 腳本 (data/init.sql)](./data/init.sql)**
 
 **建置步驟：**
 1. 點擊上方連結進入 `init.sql` 檔案。
