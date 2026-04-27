@@ -23,6 +23,19 @@ print("🚀 NOVA SYSTEM BOOTING: VERSION MVC-4.0")
 print("=========================================")
 
 # ==========================================
+# 防護時間微秒報錯
+# ==========================================
+
+def safe_parse_iso(date_str):
+    if not date_str:
+        return None
+    try:
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    except ValueError:
+        clean_str = re.sub(r'\.\d+(?=[+-])', '', date_str) 
+        return datetime.fromisoformat(clean_str.replace('Z', '+00:00'))
+
+# ==========================================
 # 1. 環境設定與初始化
 # ==========================================
 # 載入 .env 檔案中的變數
@@ -50,7 +63,6 @@ class SupabaseManager:
         return response.data[0] if response.data else None
 
     @staticmethod
-    # 🌟 參數新增了 raw_example_en 與 raw_quiz_en
     def update_generation_result(word, context, teacher_card, quiz, current_count, raw_example_en="", raw_quiz_en=""):
         data = {
             "news_context": context,
@@ -59,7 +71,9 @@ class SupabaseManager:
             "raw_example_en": raw_example_en,
             "raw_quiz_en": raw_quiz_en,
             "updated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-            "update_count": current_count + 1
+            "update_count": current_count + 1,
+            "context_embedding": None,
+            "example_embedding": None
         }
         supabase.table("llm_generation_cache").update(data).eq("word", word.lower()).execute()
 
@@ -402,7 +416,7 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=5):
         should_generate, is_update, current_count = False, False, 0
 
         if record:
-            last_updated = datetime.fromisoformat(record['updated_at'].replace('Z', '+00:00'))
+            last_updated = safe_parse_iso(record['updated_at'])
             days_diff = (datetime.now(timezone.utc) - last_updated).days
             current_count = record.get('update_count', 0)
 
