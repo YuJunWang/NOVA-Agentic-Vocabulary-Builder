@@ -63,6 +63,13 @@ class SupabaseManager:
         return response.data[0] if response.data else None
 
     @staticmethod
+    def get_clean_utc_now():
+        # 1. 抓取 UTC 時間
+        # 2. 拔掉微秒 (避免 5 位數報錯)
+        # 3. 輸出標準 ISO 格式
+        return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    
+    @staticmethod
     def update_generation_result(word, context, teacher_card, quiz, current_count, raw_example_en="", raw_quiz_en=""):
         data = {
             "news_context": context,
@@ -79,6 +86,9 @@ class SupabaseManager:
 
     @staticmethod
     def save_new_generation(word, context, teacher_card, quiz, raw_example_en="", raw_quiz_en=""):
+        
+        now = SupabaseManager.get_clean_utc_now()
+        
         # 1. 存入教材緩存表
         data = {
             "word": word.lower(),
@@ -87,7 +97,9 @@ class SupabaseManager:
             "examiner_quiz_content": quiz,
             "raw_example_en": raw_example_en,
             "raw_quiz_en": raw_quiz_en,
-            "update_count": 0
+            "update_count": 0,
+            "created_at": now,
+            "updated_at": now
         }
         supabase.table("llm_generation_cache").insert(data).execute()
 
@@ -97,7 +109,7 @@ class SupabaseManager:
             "easiness_factor": 2.5,        # 初始容易度
             "interval": 0,                 # 初始間隔
             "repetition_count": 0,         # 尚未開始複習
-            "next_review_date": datetime.now(timezone.utc).replace(microsecond=0).isoformat() 
+            "next_review_date": now 
         }
         try:
             supabase.table("user_srs_progress").insert(srs_data).execute()
@@ -110,11 +122,10 @@ class SupabaseManager:
         """查詢今天（UTC時間）已經新增了多少個單字"""
         today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         
-        # 查詢 llm_generation_cache 中，created_at 大於等於今天凌晨的資料
-        # 注意：Supabase 表格預設會有 created_at 欄位
+        # 查詢 llm_generation_cache 中，updated_at 大於等於今天凌晨的資料
         response = supabase.table("llm_generation_cache") \
             .select("word", count="exact") \
-            .gte("created_at", today_start) \
+            .gte("updated_at", today_start) \
             .execute()
         
         return response.count if response.count is not None else 0
@@ -488,7 +499,7 @@ def sync_missing_embeddings():
     """
     🧹 更新補上Embedding：自動掃描並對應 raw_example_en 與 raw_quiz_en 進行向量編碼
     """
-    print("\n🔍 [自癒機制] 正在檢查是否有單字需要注入語意大腦...")
+    print("\n🔍 正在檢查是否有單字需要注入語意大腦...")
     
     response = supabase.table("llm_generation_cache") \
         .select("*") \
