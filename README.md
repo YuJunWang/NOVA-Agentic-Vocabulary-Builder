@@ -1,5 +1,7 @@
 # 🌍 NOVA | Agentic News-Driven Vocabulary Builder
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 > 「NOVA 不僅是一個單字學習工具，更是一座具備時效感知與自我迭代能力的自動化資訊流。」
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success)
@@ -177,3 +179,8 @@ streamlit run app.py
 **Yu-Jun Wang**
 *Architecting Data Flow | AI-Augmented Developer*
 * [GitHub Profile](https://github.com/YuJunWang)
+
+## 📄 授權條款 (License)
+
+本專案採用 **[MIT License](LICENSE)** 授權。
+你可以自由地使用、複製、修改與散佈本專案，但請保留原作者的版權聲明。詳細條款請參閱 `LICENSE` 檔案。
