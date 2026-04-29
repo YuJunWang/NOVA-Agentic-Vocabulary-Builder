@@ -1,6 +1,5 @@
 # 🌍 NOVA | Agentic News-Driven Vocabulary Builder
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > 「NOVA 不僅是一個單字學習工具，更是一座具備時效感知與自我迭代能力的自動化資訊流。」
 
@@ -8,6 +7,7 @@
 ![Python Version](https://img.shields.io/badge/Python-3.10-blue)
 ![Architecture](https://img.shields.io/badge/Architecture-Multi--Agent-purple)
 ![Database](https://img.shields.io/badge/Database-Supabase-green)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 🏛️ 系統理念 (System Philosophy)
 
