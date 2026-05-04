@@ -131,9 +131,9 @@ pip install -r requirements.txt
 ```
 
 ### 3. Supabase 資料庫初始化 (Database initialization)
-請先到 [supabase](https://supabase.com/) 申請一個project，取得ID及Key
+請先到 [Supabase](https://supabase.com/) 申請一個project，取得ID及Key
 
-👉 **點擊此處查看並取得完整的 [Supabase 初始化 SQL 腳本 (data/init.sql)](./data/init.sql)**
+👉 **點擊 [此處](./data/init.sql) 查看並取得完整的Supabase 初始化 SQL 腳本 (data/init.sql)**
 
 **建置步驟：**
 1. 點擊上方連結進入 `init.sql` 檔案。
@@ -149,10 +149,11 @@ pip install -r requirements.txt
 
 **`.env` (供後端 `collector.py` 讀取)**
 ```text
-GROQ_API_KEY=gsk_your_api_key_here
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_KEY=your_anon_public_key
-TARGET_DAILY_COUNT=5
+GROQ_API_KEY = gsk_your_api_key_here
+SUPABASE_URL = https://your-project-id.supabase.co
+SUPABASE_KEY = your_anon_public_key
+HF_TOKEN = your_HF_TOKEN
+TARGET_DAILY_COUNT = 5 #每天的抓取單字數
 ```
 
 **`.streamlit/secrets.toml` (供前端 `app.py` 讀取)**
