@@ -154,7 +154,7 @@ SUPABASE_URL = https://your-project-id.supabase.co
 SUPABASE_KEY = your_anon_public_key
 HF_TOKEN = your_HF_TOKEN
 
-#每天的抓取單字數
+# 每天的抓取單字數
 TARGET_DAILY_COUNT = 5
 ```
 
