@@ -514,7 +514,7 @@ def sync_missing_embeddings():
 
     print(f"   ⚠️ 發現 {len(records)} 筆資料需要編碼。正在載入 HuggingFace 模型 (all-MiniLM-L6-v2)...")
     
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_huggingface import HuggingFaceEmbeddings
     embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     
     for record in records:

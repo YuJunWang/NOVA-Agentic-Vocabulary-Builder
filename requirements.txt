@@ -10,3 +10,4 @@ pandas==2.2.1
 python-dotenv==1.0.1
 sentence-transformers>=2.2.2
 langchain-community>=0.0.10
+langchain-huggingface>=1.2.2
