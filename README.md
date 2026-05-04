@@ -153,7 +153,9 @@ GROQ_API_KEY = gsk_your_api_key_here
 SUPABASE_URL = https://your-project-id.supabase.co
 SUPABASE_KEY = your_anon_public_key
 HF_TOKEN = your_HF_TOKEN
-TARGET_DAILY_COUNT = 5 #每天的抓取單字數
+
+#每天的抓取單字數
+TARGET_DAILY_COUNT = 5
 ```
 
 **`.streamlit/secrets.toml` (供前端 `app.py` 讀取)**
