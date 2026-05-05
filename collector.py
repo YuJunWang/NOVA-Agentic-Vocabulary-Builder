@@ -1,5 +1,6 @@
 import re
 import os
+import sys
 import json
 import feedparser
 from bs4 import BeautifulSoup
@@ -579,6 +580,7 @@ def main():
     except Exception as e:
         # 如果中途遇到 LLM 罷工、新聞網站連不上等意外，系統不會整個死掉
         print(f"\n❌ [系統異常] 產線執行過程中發生錯誤: {e}")
+        sys.exit(1)
         
     finally:
         print("\n=============================================")
