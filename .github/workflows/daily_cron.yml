@@ -37,5 +37,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           TARGET_DAILY_COUNT: ${{ vars.TARGET_DAILY_COUNT || 5 }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           python collector.py
