@@ -49,7 +49,8 @@ embeddings_model = init_embeddings()
 llm = ChatGroq(
     api_key=st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY")),
     model=st.secrets.get("GROQ_MODEL", os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")), 
-    temperature=0
+    temperature=0,
+    max_retries=5
 )
 
 # ==========================================

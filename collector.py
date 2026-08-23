@@ -2,6 +2,7 @@ import re
 import os
 import sys
 import json
+import time
 import feedparser
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -190,10 +191,10 @@ def fetch_diverse_learning_materials():
 # ==========================================
 # 4. 定義 AI 員工 (LangGraph LCEL 節點)
 # ==========================================
-llm_assessor = ChatGroq(model=MODEL_NAME, temperature=0.1).bind(response_format={"type": "json_object"})
-llm_teacher = ChatGroq(model=MODEL_NAME, temperature=0.2).bind(response_format={"type": "json_object"})
-llm_examiner = ChatGroq(model=MODEL_NAME, temperature=0.4).bind(response_format={"type": "json_object"})
-llm_reviewer = ChatGroq(model=MODEL_NAME, temperature=0.1).bind(response_format={"type": "json_object"})
+llm_assessor = ChatGroq(model=MODEL_NAME, temperature=0.1, max_retries=5).bind(response_format={"type": "json_object"})
+llm_teacher = ChatGroq(model=MODEL_NAME, temperature=0.2, max_retries=5).bind(response_format={"type": "json_object"})
+llm_examiner = ChatGroq(model=MODEL_NAME, temperature=0.4, max_retries=5).bind(response_format={"type": "json_object"})
+llm_reviewer = ChatGroq(model=MODEL_NAME, temperature=0.1, max_retries=5).bind(response_format={"type": "json_object"})
 parser = JsonOutputParser()
 
 def assessor_node(state):
@@ -486,10 +487,16 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=5):
                     )
                     print(f"   ✅ '{target_word}' 已成功存入雲端！")
                     
-                success_count += 1 
+                success_count += 1
+                # ☕ 節流保護：每次成功生成後微幅等待 2 秒，避免瞬間耗盡 TPM 窗口
+                time.sleep(2)
                 
             except Exception as e:
                 print(f"   ❌ 處理 '{target_word}' 發生錯誤: {e}")
+                # 🛡️ 遇 429 速率限制時主動休眠 4 秒冷卻
+                if "429" in str(e) or "rate_limit" in str(e).lower():
+                    print("   ⏳ 觸發 TPM 速率保護，休眠 4 秒冷卻後繼續...")
+                    time.sleep(4)
 
 # ==========================================
 # 6. 掃地機器人 (更新Embedding)
