@@ -42,11 +42,11 @@ NOVA 是一個結合 Agentic Workflow (代理人工作流)、雲端無伺服器�
 > **workflow**：`[新聞輸入]` ➔ ⚖️ `評估員` ➔ (若達標) ➔ 👨‍🏫 `教師` ➔ 📝 `考官` ➔ 🔍 `QA 總編輯` ➔ `[入庫]`
 
 * **⚖️ 評估員 (Assessor - 難度守門員)**：
-    執行「及早短路 (Early Short-Circuit)」機制。嚴格過濾基礎詞彙，僅放行符合 CEFR C1 / TOEIC 850 標準的進階單字，有效節省下游 Agent 的運算資源與 API 成本。
+    執行「及早短路 (Early Short-Circuit)」機制。以 TOEIC 750+ / CEFR B2-C1 商務進階詞彙為標準，預先過濾長度不足 4 的基礎詞，僅放行商務、學術等進階單字進入下游，有效節省 Agent 運算資源與 API 成本。
 * **👨‍🏫 教師 (Teacher - 語境建構者)**：
     具備「語塊感知 (Chunk-Aware)」能力。不僅解釋單字，若偵測到該單字在原句中屬於特定片語或固定搭配 (Lexical Chunks)，會自動擴大教學邊界，生成符合真實語境的記憶卡。
 * **📝 考官 (Examiner - 測驗生成器)**：
-    運用 Prompt Engineering 限制干擾選項 (Distractors) 的結構與詞性，動態生成四選一的情境填空題。
+    以原始新聞語境為出題靈感，運用 Prompt Engineering 限制干擾選項 (Distractors) 的結構與詞性，動態生成四選一的時事情境填空題，讓測驗貼近真實閱讀場景。
 * **🔍 總編輯 (Reviewer - 線性潤飾與品管)**：
     負責生產線的最後一哩路 (Linear Refinement)。直接審查並潤飾前述產出的中文翻譯流暢度與測驗邏輯，同時嚴格保護前端 UI 所需的 Markdown 解析格式不被破壞。
 
@@ -89,9 +89,8 @@ NOVA 是一個結合 Agentic Workflow (代理人工作流)、雲端無伺服器�
 ## 🛠️ 技術堆疊 (Tech Stack)
 
 * **Frontend UI**: Streamlit, gTTS (語音合成), Regex (動態語塊挖空)
-* **AI & LLM**: LangGraph, LangChain, Groq API (`openai/gpt-oss-120b`, 可替換 `qwen/qwen3.6-27b` 等)
+* **AI & LLM**: LangGraph, LangChain, Groq API (`openai/gpt-oss-120b`，可透過 `GROQ_MODEL` 環境變數替換，例如 `qwen/qwen3.6-27b`、`openai/gpt-oss-20b`)
 * **Data Engineering**: Pandas, BeautifulSoup4, Feedparser
-* **Frontend**: Streamlit
 * **Vector Database**: Supabase (PostgreSQL + pgvector)
 * **Embedding Model**: HuggingFace (`all-MiniLM-L6-v2`)
 * **CI/CD**: GitHub Actions
@@ -156,6 +155,9 @@ HF_TOKEN = your_HF_TOKEN
 
 # 每天的抓取單字數
 TARGET_DAILY_COUNT = 5
+
+# 可選：指定 Groq 模型，預設為 openai/gpt-oss-120b
+# GROQ_MODEL = qwen/qwen3.6-27b
 ```
 
 **`.streamlit/secrets.toml` (供前端 `app.py` 讀取)**
@@ -163,6 +165,8 @@ TARGET_DAILY_COUNT = 5
 SUPABASE_URL = "https://your-project-id.supabase.co"
 SUPABASE_KEY = "your_anon_public_key"
 GROQ_API_KEY = "gsk_your_api_key_here"
+# 可選：指定 Groq 模型，預設為 openai/gpt-oss-120b
+# GROQ_MODEL = "qwen/qwen3.6-27b"
 ```
 
 
