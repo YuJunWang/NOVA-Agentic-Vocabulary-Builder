@@ -169,8 +169,8 @@ def fetch_diverse_learning_materials():
             summary_text = BeautifulSoup(entry.summary, "html.parser").get_text()
             words_in_news = set(summary_text.lower().replace('.', ' ').replace(',', ' ').split())
             
-            # 尋找難字交集
-            matched_words = words_in_news.intersection(advanced_words_set)
+            # 尋找難字交集並預先過濾超短基礎詞 (長度小於 4)
+            matched_words = {w for w in words_in_news.intersection(advanced_words_set) if len(w) >= 4}
             
             if matched_words:
                 target_word = max(matched_words, key=len)
@@ -200,8 +200,11 @@ parser = JsonOutputParser()
 def assessor_node(state):
     print(f"   ⚖️ [評估中] 判斷 '{state['current_word']}' 是否達標...")
     prompt = ChatPromptTemplate.from_messages([
-        ("system", '你是極度嚴格的單字難度評估員，只能輸出 JSON。輸出格式請嚴格遵守：{{ "is_suitable": false, "reason": "太簡單" }}'),
-        ("user", "判斷單字 '{word}' 是否達 TOEIC 850 / CEFR C1 進階難度。如果是太簡單的國中、高中基礎單字 (如 empty, there, monday, first 等) 請一律給 false。")
+        ("system", '你是專業英語教材評估員，只能輸出 JSON。輸出格式請嚴格遵守：{{ "is_suitable": true, "reason": "說明理由" }}'),
+        ("user", """請評估單字 '{word}' 是否適合作為進階多益 (TOEIC 750+ / CEFR B2-C1) 學習教材。
+評估原則：
+1. 適合 (true)：涵蓋商務、新聞、社論、科技或進階生活實用詞彙 (如: permission, advertising, declaration, validity, observation, elegant, tragedy 等中高階詞彙皆算適合)。
+2. 不適合 (false)：僅排除極日常之國小、國中入門超基礎單字 (如: cave, salt, date, lie, very, book, apple 等)。""")
     ])
     res = (prompt | llm_assessor | parser).invoke({"word": state['current_word']})
     
