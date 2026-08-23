@@ -1,7 +1,6 @@
 # 🌍 NOVA | Agentic News-Driven Vocabulary Builder
 
-
-> 「NOVA 不僅是一個單字學習工具，更是一座具備時效感知與自我迭代能力的自動化資訊流。」
+結合 BBC 即時時事、LangGraph 多代理人產線與 SuperMemo-2 (SM-2) 間隔重複演算法的自動化高階英文單字學習系統。
 
 ![Project Status](https://img.shields.io/badge/Status-Active-success)
 ![Python Version](https://img.shields.io/badge/Python-3.10-blue)
@@ -9,18 +8,17 @@
 ![Database](https://img.shields.io/badge/Database-Supabase-green)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 🏛️ 系統理念 (System Philosophy)
+---
 
-**「為何命名為 NOVA？」**
-NOVA 取自 **N**ews-driven **O**ptimized **V**ocabulary **A**gent（新聞驅動的最佳化單字代理）。同時，"Nova" 在天文學中代表著爆發的「新星」，象徵著這套系統能如同新星般，在學習者的腦海中瞬間點亮並刻印那些晦澀難懂的高階單字。
+## 📌 為什麼做這個專案？
 
-NOVA 是一個結合 Agentic Workflow (代理人工作流)、雲端無伺服器架構與 SRS 間隔重複演算法的智能時事單字庫。
+死背單字書常常遇到兩個痛點：**「脫離真實語境」**與**「缺乏複習機制」**。
 
-在 NOVA 的設計中，資料不只是靜態的儲存，而是一個具備完整生命週期的流動體：從 BBC 原始新聞的**「萃取 (Extraction)」**，經過 LangGraph 多代理架構的**「轉化與品質審查 (Transformation & QA)」**，最終透過 SM-2 演算法沉澱為使用者的**「長期記憶 (Retention)」**。本專案將 AI 視為系統底層的協作微服務 (Microservices)，專注於定義高品質的資料邊界與自動化排程，實現真正的零維護 (Zero-Maintenance) 學習產線。
+NOVA 的設計理念是讓學習素材直接來自「真實世界的最新事件」。系統每天透過 GitHub Actions 自動抓取 BBC 新聞，由 LangGraph 狀態機產線篩選出進階商務與時事單字，自動提煉情境例句與測驗題；最後將單字與情境向量化存入 Supabase，結合 SM-2 間隔重複演算法推送每日複習，達成全自動、無人值守的單字學習流。
 
-## ✨ 核心架構與 Agentic Workflow (Core Features)
+---
 
-### 0. 📸 系統展示 (System Showcase)
+## 📸 系統展示 (Showcase)
 
 <p align="center">
   <img src="pic/03_NOVA_DEMO.png" alt="NOVA Agentic 系統架構圖" width="85%" />
@@ -32,95 +30,92 @@ NOVA 是一個結合 Agentic Workflow (代理人工作流)、雲端無伺服器�
   <img src="pic/02_backend.png" alt="NOVA 後端自動化產線" width="48%" />
 </p>
 
+---
 
-### 1. 🤖 狀態機與多代理協作大腦 (Multi-Agent State Machine)
+## ⚙️ 核心架構與工作流 (Workflow)
 
-**a. 後端資料準備**
+### 1. 後端：LangGraph 四節點自動化產線 (`collector.py`)
 
-本專案捨棄傳統的單一 Prompt 生成，採用 **LangGraph** 構建了基於狀態機 (State-Machine) 的四節點 AI 協作管線。每個 Agent 各司其職，並具備條件分流與品質控管機制：
+為了避免單一 Prompt 同時處理過多任務導致輸出品質不穩，後端採用 **LangGraph 狀態機** 將單字生成拆解為四個專責節點：
 
-> **workflow**：`[新聞輸入]` ➔ ⚖️ `評估員` ➔ (若達標) ➔ 👨‍🏫 `教師` ➔ 📝 `考官` ➔ 🔍 `QA 總編輯` ➔ `[入庫]`
+```text
+[BBC 新聞輸入] ➔ ⚖️ Assessor ➔ (達標) ➔ 👨‍🏫 Teacher ➔ 📝 Examiner ➔ 🔍 Reviewer ➔ [入庫 Supabase]
+                     └─ (未達標 ➔ 早期終止 END)
+```
 
-* **⚖️ 評估員 (Assessor - 難度守門員)**：
-    執行「及早短路 (Early Short-Circuit)」機制。以 TOEIC 750+ / CEFR B2-C1 商務進階詞彙為標準，預先過濾長度不足 4 的基礎詞，僅放行商務、學術等進階單字進入下游，有效節省 Agent 運算資源與 API 成本。
-* **👨‍🏫 教師 (Teacher - 語境建構者)**：
-    具備「語塊感知 (Chunk-Aware)」能力。不僅解釋單字，若偵測到該單字在原句中屬於特定片語或固定搭配 (Lexical Chunks)，會自動擴大教學邊界，生成符合真實語境的記憶卡。
-* **📝 考官 (Examiner - 測驗生成器)**：
-    以原始新聞語境為出題靈感，運用 Prompt Engineering 限制干擾選項 (Distractors) 的結構與詞性，動態生成四選一的時事情境填空題，讓測驗貼近真實閱讀場景。
-* **🔍 總編輯 (Reviewer - 線性潤飾與品管)**：
-    負責生產線的最後一哩路 (Linear Refinement)。直接審查並潤飾前述產出的中文翻譯流暢度與測驗邏輯，同時嚴格保護前端 UI 所需的 Markdown 解析格式不被破壞。
+- **⚖️ Assessor (難度過濾)**：
+  預先排除長度小於 4 的基礎詞，並以 **TOEIC 750+ / CEFR B2-C1** 為基準判斷詞彙是否具備商務或學術價值。未達標者觸發 Conditional Edge 提早短路（Early Exit），大幅節省後續 LLM 呼叫成本與 API Token。
+- **👨‍🏫 Teacher (教材生成)**：
+  具備語塊感知（Lexical Chunks）能力。若單字在原句中屬於特定片語或固定搭配，會自動擴大教學邊界，生成符合該語境的雙語解釋與生活例句。
+- **📝 Examiner (情境出題)**：
+  以原始新聞語境為靈感，動態生成四選一英文填空題與中文解析，並嚴格要求干擾選項（Distractors）詞性與結構對稱。
+- **🔍 Reviewer (品管與純句萃取)**：
+  校對 JSON 格式與繁體中文語意流暢度，同時萃取去除標記的純英文句子，供後續向量編碼使用。
 
-**b. 前端資料呈現**
+### 2. 前端：對話式意圖路由與學習空間 (`app.py`)
 
-介面採用對話式驅動，由agent判斷使用者輸入意圖，提供根據SRS演算法從候選單字庫提取單字的 **複習** 功能，以及RAG系統的語意搜尋，可以針對單字或是新聞內容作搜尋：
+前端採用 Streamlit 打造，整合自然語言路由與記憶演算法：
 
-> **workflow**：`[對話輸入]` ➔ 🧠 `意圖路由` ➔ 📝 `複習` / 🔍 `搜尋` ➔ 🎨 `單字卡介面`
+- **🧠 意圖路由 (Intent Router)**：
+  透過 Pydantic Structured Output 分析使用者輸入，自動分流至「查單字」、「依情境/時事語意搜尋」或「SRS 複習」。
+- **🔍 向量檢索 (RAG System)**：
+  使用 HuggingFace `all-MiniLM-L6-v2` 與 Supabase pgvector，支援針對單字面（Word）、時事背景（Context）與生活例句（Example）進行多維度相似度搜尋。
+- **⏳ SM-2 間隔重複複習 (Spaced Repetition)**：
+  內建 SuperMemo-2 演算法。依據使用者答題品質（Quality 0~5）動態計算 Ease Factor 與下次複習天數，在遺忘臨界點精準推送。
 
-* **🧠 意圖路由 (Intent Routing)**：
-    根據使用者輸入對話，由agent判斷執行複習功能或是語意查找。
-* **📝 複習 (Review)**：
-    使用SRS演算法，動態計算符合單字，與新單字一併形成候選資料庫，從中隨機抽取單字，製作今日單字卡。
-* **🔍 搜尋 (Search)**：
-    先由agent轉譯原始語句為適合查詢之關鍵字，以RAG功能搜尋符合單字或新聞例句。
-* **🎨 單字卡介面 (UI)**：
-    透過streamlit介面展示結構化排版的單字資訊。
+---
 
-### 2. 📰 時事驅動的資料管線 (News-Driven ETL Pipeline)
-每日自動解析 BBC RSS 新聞流，透過 Pandas 進行輕量級 ETL 處理，並與本地端的高階詞彙表進行交集比對，確保萃取出的教材皆帶有最新的國際時事語境。
+## 🛡️ 工程設計亮點
 
-### 3. ⏳ 科學記憶引擎 (SM-2 SRS Algorithm)
-內建 SuperMemo-2 間隔重複演算法。系統會動態計算 `Quality` (回饋品質)、`Interval` (間隔天數) 與 `Ease Factor` (輕鬆度乘數)，在遺忘曲線的臨界點精準推送複習任務，將短期記憶轉化為長期記憶。
+1. **Groq 速率保護 (Rate Limit & Retry Protection)**：
+   針對 Groq 免費方案 8,000 TPM 上限，ChatGroq 實作 SDK 級重試（`max_retries=5`）、產線成功間隔節流（2s），以及捕捉 429 例外時自動冷卻 10 秒後重試同一個單字的容錯機制。
+2. **配額感知與冪等性 (Quota Awareness)**：
+   排程啟動時主動查詢 Supabase 當日已建立的單字量，若已達 `TARGET_DAILY_COUNT` 則自動跳過，避免重複生成浪費資源。
+3. **非同步語意大腦同步 (Embedding Synchronizer)**：
+   產線主流程順利完成後，自動掃描未完成向量編碼的記錄，批次補上 3 向語意 Embedding，維持資料庫搜尋品質。
 
-### 4. 🗄️ 3D 語意金庫 (Supabase Vector DB) & RAG System
-* 儲存 `word_embedding` (單字面)、`context_embedding` (時事面)、`example_embedding` (生活面)，將單字立體化。
-* 使用 `all-MiniLM-L6-v2` 進行高效率的語意編碼。
-
-### 5. ⚙️ 自動化與配額管理 (Automation & Quota Management)
-藉由 GitHub Actions 部署每日 Cron Job。系統具備防禦性的「自我配額管理 (Quota Management)」意識，會主動向資料庫查詢當日已生成的教材數量，避免 API 帳單超支，實現真正的零維護 (Zero-Maintenance) 運作。
-
-## 🗺️ 系統架構簡述
-
-1. **採集層 (Collector)**: 隨機挑選 3 個新聞頻道 -> 各抓取 15 筆新聞 -> 全局洗牌。
-2. **過濾層 (Filter)**: 讀取本地 `vocab_advanced_clean.csv` 字典檔，與新聞進行交集比對，抓出進階詞彙。
-3. **生成層 (Generator)**: 啟動 LangGraph，AI 員工依序接力完成「評估 -> 教學 -> 測驗 -> 審查」的自動化流程。
-4. **存儲層 (Storage)**: 寫入 Supabase (`llm_generation_cache` & `user_srs_progress`)。
-5. **展示層 (Frontend)**: 使用者透過 Streamlit 網頁進行每日任務與 SRS 複習。
+---
 
 ## 🛠️ 技術堆疊 (Tech Stack)
 
-* **Frontend UI**: Streamlit, gTTS (語音合成), Regex (動態語塊挖空)
-* **AI & LLM**: LangGraph, LangChain, Groq API (`openai/gpt-oss-120b`，可透過 `GROQ_MODEL` 環境變數替換，例如 `qwen/qwen3.6-27b`、`openai/gpt-oss-20b`)
-* **Data Engineering**: Pandas, BeautifulSoup4, Feedparser
-* **Vector Database**: Supabase (PostgreSQL + pgvector)
-* **Embedding Model**: HuggingFace (`all-MiniLM-L6-v2`)
-* **CI/CD**: GitHub Actions
+| 領域 | 技術 / 工具 |
+| :--- | :--- |
+| **前端介面** | Streamlit, gTTS (語音合成) |
+| **AI / 多代理人** | LangGraph, LangChain, Groq API (`openai/gpt-oss-120b`，支援 `GROQ_MODEL` 環境變數動態切換) |
+| **資料工程** | Pandas, BeautifulSoup4, Feedparser |
+| **向量資料庫** | Supabase (PostgreSQL + pgvector) |
+| **Embedding 模型** | HuggingFace (`sentence-transformers/all-MiniLM-L6-v2`) |
+| **CI / CD 排程** | GitHub Actions (每日定時 Cron Job) |
 
-## 📂 檔案結構 (Architecture Directory)
+---
+
+## 📂 專案結構
 
 ```text
 NOVA-Agentic-Vocabulary-Builder/
 ├── .github/workflows/
-│   └── daily_cron.yml           # GitHub Actions 自動化排程劇本
+│   └── daily_cron.yml           # GitHub Actions 每日自動化排程
 ├── data/
-│   ├── vocab_advanced_clean.csv # 進階單字篩選字典 (本地端快取)
-│   └── init.sql                 # 初始化supabase的SQL腳本
-├── app.py                       # Streamlit 前端：SRS 演算法實作與互動介面
-├── collector.py                 # 後端大腦：RSS 爬蟲、LangGraph 產線、資料庫同步
-├── requirements.txt             # 環境相依套件清單
-├── README.md                    # 系統架構說明文檔
-└── pic/                         # 系統架構圖與前後端運行截圖
+│   ├── vocab_advanced_clean.csv # 本地進階單字比對詞庫
+│   └── init.sql                 # Supabase 資料庫與向量 RPC 初始化腳本
+├── app.py                       # Streamlit 前端：意圖路由、SRS 複習與 RAG 檢索
+├── collector.py                 # 後端產線：RSS 爬蟲、LangGraph 狀態機、向量同步
+├── requirements.txt             # 鎖定版本的依賴清單
+└── README.md                    # 專案說明文件
 ```
+
+---
 
 ## 🚀 快速啟動 (Quick Start)
 
-### 1. 取得專案 (Clone Repository)
+### 1. 複製專案
 ```bash
 git clone https://github.com/YuJunWang/NOVA-Agentic-Vocabulary-Builder.git
 cd NOVA-Agentic-Vocabulary-Builder
 ```
 
-### 2. 建置虛擬環境 (Environment Setup)
-建議使用 Python 3.10 以確保套件相容性。
+### 2. 建立虛擬環境並安裝套件
+建議使用 Python 3.10：
 ```bash
 python -m venv venv
 venv\Scripts\activate       # Windows
@@ -129,35 +124,27 @@ venv\Scripts\activate       # Windows
 pip install -r requirements.txt
 ```
 
-### 3. Supabase 資料庫初始化 (Database initialization)
-請先到 [Supabase](https://supabase.com/) 申請一個project，取得ID及Key
+### 3. 初始化 Supabase 資料庫
+1. 至 [Supabase](https://supabase.com/) 建立專案並取得 Project URL 與 API Key。
+2. 進入 Supabase 後台的 **SQL Editor**。
+3. 複製 [`data/init.sql`](./data/init.sql) 內容並執行，一鍵建立資料表與向量搜尋 RPC 函數。
 
-👉 **點擊 [此處](./data/init.sql) 查看並取得完整的Supabase 初始化 SQL 腳本 (data/init.sql)**
+### 4. 設定環境變數
 
-**建置步驟：**
-1. 點擊上方連結進入 `init.sql` 檔案。
-2. 複製檔案內的全部內容。
-3. 進入您的 Supabase 專案後台，開啟 **SQL Editor**。
-4. 貼上腳本並點擊 `Run`，即可一鍵完成所有資料庫與 AI 搜尋引擎的架構設定！
-
-
-### 4. 配置金鑰防護罩 (Secret Management)
-本專案嚴格分離「後端引擎」與「前端 UI」的環境變數。
-
-接著在本地專案根目錄建立以下兩個檔案：
+在專案根目錄建立以下設定檔：
 
 **`.env` (供後端 `collector.py` 讀取)**
 ```text
-GROQ_API_KEY = gsk_your_api_key_here
-SUPABASE_URL = https://your-project-id.supabase.co
-SUPABASE_KEY = your_anon_public_key
-HF_TOKEN = your_HF_TOKEN
+GROQ_API_KEY=gsk_your_api_key_here
+SUPABASE_URL=https://your-project-id.supabase.co
+SUPABASE_KEY=your_anon_public_key
+HF_TOKEN=your_huggingface_token
 
-# 每天的抓取單字數
-TARGET_DAILY_COUNT = 5
+# 每日目標採集單字數
+TARGET_DAILY_COUNT=5
 
-# 可選：指定 Groq 模型，預設為 openai/gpt-oss-120b
-# GROQ_MODEL = qwen/qwen3.6-27b
+# 可選：指定 Groq 模型（預設為 openai/gpt-oss-120b）
+# GROQ_MODEL=qwen/qwen3.6-27b
 ```
 
 **`.streamlit/secrets.toml` (供前端 `app.py` 讀取)**
@@ -165,29 +152,32 @@ TARGET_DAILY_COUNT = 5
 SUPABASE_URL = "https://your-project-id.supabase.co"
 SUPABASE_KEY = "your_anon_public_key"
 GROQ_API_KEY = "gsk_your_api_key_here"
-# 可選：指定 Groq 模型，預設為 openai/gpt-oss-120b
+
+# 可選：指定 Groq 模型（預設為 openai/gpt-oss-120b）
 # GROQ_MODEL = "qwen/qwen3.6-27b"
 ```
 
+### 5. 執行系統
 
-### 5. 啟動系統 (Run the System)
-
-**啟動資訊產線 (後端大腦測試)：**
+**測試後端採集產線：**
 ```bash
 python collector.py
 ```
 
-**啟動互動介面 (前端學習空間)：**
+**啟動前端學習介面：**
 ```bash
 streamlit run app.py
 ```
 
+---
+
 ## 👨‍💻 作者 (Author)
+
 **Yu-Jun Wang**
-*Architecting Data Flow | AI-Augmented Developer*
 * [GitHub Profile](https://github.com/YuJunWang)
+
+---
 
 ## 📄 授權條款 (License)
 
 本專案採用 **[MIT License](LICENSE)** 授權。
-你可以自由地使用、複製、修改與散佈本專案，但請保留原作者的版權聲明。詳細條款請參閱 `LICENSE` 檔案。
