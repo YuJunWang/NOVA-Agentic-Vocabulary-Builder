@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 from supabase import create_client, Client
 from datetime import datetime, timezone, timedelta
@@ -13,8 +14,6 @@ from langchain_groq import ChatGroq
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel, Field
-
-from datetime import datetime
 
 def safe_parse_iso(date_str):
     """🛠️ 萬用時間解析器：自動處理 Supabase 惱人的微秒位數問題"""

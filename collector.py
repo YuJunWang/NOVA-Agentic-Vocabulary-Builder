@@ -257,6 +257,9 @@ def examiner_node(state):
         ("user", """
         請針對焦點詞彙 '{word}' 設計一題四選一的英文填空題。
         
+        【出題語境】：請以下方的新聞情境為靈感出題，讓題目貼近真實時事場景：
+        "{context}"
+        
         【核心規則 (必須遵守不得違反!題目及選項必須使用英文撰寫)】：
         1. 語言隔離：'question' (題目) 與 'options' (四個選項) 必須是 **100% totally in English**，絕對不允許出現任何中文字！
         2. 挖空規則：如果 '{word}' 在原句中屬於片語 (例如 look forward to)，請在題目中「將整個片語挖空 (用 _____ 取代)」，絕對不要只挖空一半！
@@ -270,7 +273,10 @@ def examiner_node(state):
         explanation (繁體中文解析，需說明為何選此答案以及其他選項為何錯誤)
         """)
     ])
-    data = (prompt | llm_examiner | parser).invoke({"word": state['current_word']})
+    data = (prompt | llm_examiner | parser).invoke({
+        "word": state['current_word'],
+        "context": state['news_context']
+    })
 
     return {"raw_quiz_data": data}
 
@@ -496,10 +502,29 @@ def mass_produce_flashcards_with_refresh(candidates, target_daily_count=5):
                 
             except Exception as e:
                 print(f"   ❌ 處理 '{target_word}' 發生錯誤: {e}")
-                # 🛡️ 遇 429 速率限制時主動休眠 4 秒冷卻
+                # 🛡️ 遇 429 速率限制時主動休眠，並重試同一個字一次
                 if "429" in str(e) or "rate_limit" in str(e).lower():
-                    print("   ⏳ 觸發 TPM 速率保護，休眠 4 秒冷卻後繼續...")
-                    time.sleep(4)
+                    print("   ⏳ 觸發 TPM 速率保護，休眠 10 秒冷卻後，重試同一個單字...")
+                    time.sleep(10)
+                    try:
+                        final_state = app.invoke({"current_word": target_word, "news_context": context})
+                        if final_state.get("is_suitable", False):
+                            # 重試成功，補上寫入邏輯
+                            teacher_card = final_state.get('teacher_card', '')
+                            quiz = final_state.get('quiz', '')
+                            raw_example = str(final_state.get('raw_example_en') or '').strip() or "ERROR_EMPTY_EXAMPLE"
+                            raw_quiz = str(final_state.get('raw_quiz_en') or '').strip() or "ERROR_EMPTY_QUIZ"
+                            if is_update:
+                                SupabaseManager.update_generation_result(target_word, context, teacher_card, quiz, current_count, raw_example, raw_quiz)
+                            else:
+                                SupabaseManager.save_new_generation(target_word, context, teacher_card, quiz, raw_example, raw_quiz)
+                            print(f"   ✅ [重試成功] '{target_word}' 已存入雲端！")
+                            success_count += 1
+                            time.sleep(2)
+                        else:
+                            print(f"   🛑 [重試後淘汰] '{target_word}' 難度不符，放棄。")
+                    except Exception as retry_e:
+                        print(f"   ❌ [重試失敗] '{target_word}': {retry_e}")
 
 # ==========================================
 # 6. 掃地機器人 (更新Embedding)
@@ -589,12 +614,12 @@ def main():
         # 如果中途遇到 LLM 罷工、新聞網站連不上等意外，系統不會整個死掉
         print(f"\n❌ [系統異常] 產線執行過程中發生錯誤: {e}")
         sys.exit(1)
-        
-    finally:
-        print("\n=============================================")
-        sync_missing_embeddings()  # 智能掃地機器人出動！
-        print("=============================================")
-        print("\n🎉 NOVA 每日採集與自我修復排程執行完畢！")
+
+    # ✅ 掃地機器人只在主流程「正常結束」後才出動（不在 finally，避免異常時浪費資源）
+    print("\n=============================================")
+    sync_missing_embeddings()
+    print("=============================================")
+    print("\n🎉 NOVA 每日採集與自我修復排程執行完畢！")
 
 
 if __name__ == "__main__":
