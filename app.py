@@ -47,8 +47,8 @@ supabase = init_supabase()
 embeddings_model = init_embeddings()
 
 llm = ChatGroq(
-    api_key=st.secrets["GROQ_API_KEY"],
-    model="llama-3.3-70b-versatile", 
+    api_key=st.secrets.get("GROQ_API_KEY", os.getenv("GROQ_API_KEY")),
+    model=st.secrets.get("GROQ_MODEL", os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")), 
     temperature=0
 )
 

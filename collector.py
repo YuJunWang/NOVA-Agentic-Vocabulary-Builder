@@ -48,11 +48,9 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # 初始化 Groq LLM (確認 .env 中有 GROQ_API_KEY)
-# 注意：替換為實際使用的模型名稱
-# qwen/qwen3-32b
-# llama-3.3-70b-versatile
-# llama-3.1-8b-instant
-MODEL_NAME = "llama-3.3-70b-versatile" 
+# 可透過環境變數 GROQ_MODEL 指定模型，預設採用量級旗艦模型 openai/gpt-oss-120b
+# 備選模型：qwen/qwen3.6-27b (繁中表現極佳)、openai/gpt-oss-20b (輕量高速)
+MODEL_NAME = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 # ==========================================
 # 2. Supabase 管理員類別

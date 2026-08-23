@@ -89,7 +89,7 @@ NOVA 是一個結合 Agentic Workflow (代理人工作流)、雲端無伺服器�
 ## 🛠️ 技術堆疊 (Tech Stack)
 
 * **Frontend UI**: Streamlit, gTTS (語音合成), Regex (動態語塊挖空)
-* **AI & LLM**: LangGraph, LangChain, Groq API (llama-3.3-70b-versatile)
+* **AI & LLM**: LangGraph, LangChain, Groq API (`openai/gpt-oss-120b`, 可替換 `qwen/qwen3.6-27b` 等)
 * **Data Engineering**: Pandas, BeautifulSoup4, Feedparser
 * **Frontend**: Streamlit
 * **Vector Database**: Supabase (PostgreSQL + pgvector)
